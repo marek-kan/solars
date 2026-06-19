@@ -45,31 +45,7 @@ pub fn julian_millennium(julian_century: f64) -> f64 {
     julian_century / 10.0
 }
 
-/// X_0 (degrees)
-pub fn calculate_elongation_moon_from_sun(jce: f64) -> f64 {
-    297.85036 + 445267.111480 * jce - 0.0019142 * jce.powi(2) + jce.powi(3) / 189474.0
-}
 
-/// X_1 (degrees)
-pub fn calculate_sun_anomaly(jce: f64) -> f64 {
-    357.52772 + 35999.050340 * jce - 0.0001603 * jce.powi(2) - jce.powi(3) / 30000.0
-}
-
-/// X_2 (degrees)
-pub fn calculate_moon_anomaly(jce: f64) -> f64 {
-    134.96298 + 477198.867398 * jce - 0.0086972 * jce.powi(2) - jce.powi(3) / 56250.0
-}
-
-/// X_3 (degrees)
-pub fn calculate_moon_lat(jce: f64) -> f64 {
-    93.27191 + 483202.017538 * jce - 0.0036825 * jce.powi(2) - jce.powi(3) / 327270.0
-}
-
-/// X_4 (degrees)
-/// the longitude of the ascending node of the moon’s mean orbit on the ecliptic, measured from the mean equinox of the date
-pub fn calculate_moon_lon(jce: f64) -> f64 {
-    125.04452 - 1934.136261 * jce - 0.0020708 * jce.powi(2) - jce.powi(3) / 450000.0
-}
 
 /// A Python module implemented in Rust.
 #[pymodule]
