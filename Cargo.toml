@@ -10,7 +10,10 @@ name = "solars"
 # Downstream Rust code (including code in `bin/`, `examples/`, and `tests/`) will not be able
 # to `use string_sum;` unless the "rlib" or "lib" crate type is also included, e.g.:
 # crate-type = ["cdylib", "rlib"]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+chrono = "0.4.45"
+ndarray = { version = "0.17.2", features = ["rayon"] }
 pyo3 = "0.29.0"
+rayon = "1.12.0"
