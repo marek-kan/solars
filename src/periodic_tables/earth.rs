@@ -1,4 +1,4 @@
-use rayon::prelude::*;
+use super::*;
 
 struct EarthPeriodicTermRow {
     a: f64,

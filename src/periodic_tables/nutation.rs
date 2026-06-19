@@ -1,0 +1,287 @@
+use super::*;
+
+struct PsiCoeffRow {
+    a: f64,
+    b: f64,
+}
+
+struct EpsilonCoeffRow {
+    c: f64,
+    d: f64,
+}
+
+struct YCoeffRow {
+    y0: f64,
+    y1: f64,
+    y2: f64,
+    y3: f64,
+    y4: f64,
+}
+
+struct XCoeffRow {
+    a: f64,
+    b: f64,
+    c: f64,
+    d: f64,
+}
+
+fn calculate_xi(jce: f64) -> [f64; 5] {
+    let mut res = [0.0_f64; 5];
+
+    for (i, row) in X_TABLE.iter().enumerate() {
+        res[i] = row.a + row.b * jce - row.c * jce.powi(2) - jce.powi(3) / row.d;
+    }
+
+    res
+}
+
+fn calculate_dpsi_depsilon(jce: f64) -> (f64, f64) {
+    let xi = calculate_xi(jce);
+    let mut dpsi = 0.0;
+    let mut depsilon = 0.0;
+
+    for i in 0..63 {
+        let y = &Y_TABLE[i];
+        let psi = &PSI_TABLE[i];
+        let epsilon = &EPSILON_TABLE[i];
+
+        let arg = (y.y0 * xi[0] + y.y1 * xi[1] + y.y2 * xi[2] + y.y3 * xi[3] + y.y4 * xi[4]).to_radians();
+
+        dpsi += (psi.a + psi.b * jce) * arg.sin();
+        depsilon += (epsilon.c + epsilon.d * jce) * arg.cos();
+    }
+
+    (dpsi / 36000000.0, depsilon / 36000000.0)
+}
+
+const X_TABLE: [XCoeffRow; 5] = [
+    XCoeffRow {a: 297.85036, b: 445267.111480, c: 0.0019142, d: 189474.0},
+    XCoeffRow {a: 357.52772, b: 35999.050340, c: 0.0001603, d: 30000.0},
+    XCoeffRow {a: 134.96298, b: 477198.867398, c: 0.0086972, d: 56250.0},
+    XCoeffRow {a: 93.27191, b: 483202.017538, c: 0.0036825, d: 327270.0},
+    XCoeffRow {a: 125.04452, b: 1934.136261, c: 0.0020708, d: 450000.0},
+];
+
+const PSI_TABLE: [PsiCoeffRow; 63] = [
+    PsiCoeffRow { a: -171996.0, b: -174.2 },
+    PsiCoeffRow { a: -13187.0, b: -1.6 },
+    PsiCoeffRow { a: -2274.0, b: -0.2 },
+    PsiCoeffRow { a: 2062.0, b: 0.2 },
+    PsiCoeffRow { a: 1426.0, b: -3.4 },
+    PsiCoeffRow { a: 712.0, b: 0.1 },
+    PsiCoeffRow { a: -517.0, b: 1.2 },
+    PsiCoeffRow { a: -386.0, b: -0.4 },
+    PsiCoeffRow { a: -301.0, b: 0.0 },
+    PsiCoeffRow { a: 217.0, b: -0.5 },
+    PsiCoeffRow { a: -158.0, b: 0.0 },
+    PsiCoeffRow { a: 129.0, b: 0.1 },
+    PsiCoeffRow { a: 123.0, b: 0.0 },
+    PsiCoeffRow { a: 63.0, b: 0.0 },
+    PsiCoeffRow { a: 63.0, b: 0.1 },
+    PsiCoeffRow { a: -59.0, b: 0.0 },
+    PsiCoeffRow { a: -58.0, b: -0.1 },
+    PsiCoeffRow { a: -51.0, b: 0.0 },
+    PsiCoeffRow { a: 48.0, b: 0.0 },
+    PsiCoeffRow { a: 46.0, b: 0.0 },
+    PsiCoeffRow { a: -38.0, b: 0.0 },
+    PsiCoeffRow { a: -31.0, b: 0.0 },
+    PsiCoeffRow { a: 29.0, b: 0.0 },
+    PsiCoeffRow { a: 29.0, b: 0.0 },
+    PsiCoeffRow { a: 26.0, b: 0.0 },
+    PsiCoeffRow { a: -22.0, b: 0.0 },
+    PsiCoeffRow { a: 21.0, b: 0.0 },
+    PsiCoeffRow { a: 17.0, b: -0.1 },
+    PsiCoeffRow { a: 16.0, b: 0.0 },
+    PsiCoeffRow { a: -16.0, b: 0.1 },
+    PsiCoeffRow { a: -15.0, b: 0.0 },
+    PsiCoeffRow { a: -13.0, b: 0.0 },
+    PsiCoeffRow { a: -12.0, b: 0.0 },
+    PsiCoeffRow { a: 11.0, b: 0.0 },
+    PsiCoeffRow { a: -10.0, b: 0.0 },
+    PsiCoeffRow { a: -8.0, b: 0.0 },
+    PsiCoeffRow { a: 7.0, b: 0.0 },
+    PsiCoeffRow { a: -7.0, b: 0.0 },
+    PsiCoeffRow { a: -7.0, b: 0.0 },
+    PsiCoeffRow { a: -7.0, b: 0.0 },
+    PsiCoeffRow { a: 6.0, b: 0.0 },
+    PsiCoeffRow { a: 6.0, b: 0.0 },
+    PsiCoeffRow { a: 6.0, b: 0.0 },
+    PsiCoeffRow { a: -6.0, b: 0.0 },
+    PsiCoeffRow { a: -6.0, b: 0.0 },
+    PsiCoeffRow { a: 5.0, b: 0.0 },
+    PsiCoeffRow { a: -5.0, b: 0.0 },
+    PsiCoeffRow { a: -5.0, b: 0.0 },
+    PsiCoeffRow { a: -5.0, b: 0.0 },
+    PsiCoeffRow { a: 4.0, b: 0.0 },
+    PsiCoeffRow { a: 4.0, b: 0.0 },
+    PsiCoeffRow { a: 4.0, b: 0.0 },
+    PsiCoeffRow { a: -4.0, b: 0.0 },
+    PsiCoeffRow { a: -4.0, b: 0.0 },
+    PsiCoeffRow { a: -4.0, b: 0.0 },
+    PsiCoeffRow { a: 3.0, b: 0.0 },
+    PsiCoeffRow { a: -3.0, b: 0.0 },
+    PsiCoeffRow { a: -3.0, b: 0.0 },
+    PsiCoeffRow { a: -3.0, b: 0.0 },
+    PsiCoeffRow { a: -3.0, b: 0.0 },
+    PsiCoeffRow { a: -3.0, b: 0.0 },
+    PsiCoeffRow { a: -3.0, b: 0.0 },
+    PsiCoeffRow { a: -3.0, b: 0.0 },
+];
+
+const EPSILON_TABLE: [EpsilonCoeffRow; 63] = [
+    EpsilonCoeffRow { c: 92025.0, d: 8.9 },
+    EpsilonCoeffRow { c: 5736.0, d: -3.1 },
+    EpsilonCoeffRow { c: 977.0, d: -0.5 },
+    EpsilonCoeffRow { c: -895.0, d: 0.5 },
+    EpsilonCoeffRow { c: 54.0, d: -0.1 },
+    EpsilonCoeffRow { c: -7.0, d: 0.0 },
+    EpsilonCoeffRow { c: 224.0, d: -0.6 },
+    EpsilonCoeffRow { c: 200.0, d: 0.0 },
+    EpsilonCoeffRow { c: 129.0, d: -0.1 },
+    EpsilonCoeffRow { c: -95.0, d: 0.3 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: -70.0, d: 0.0 },
+    EpsilonCoeffRow { c: -53.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: -33.0, d: 0.0 },
+    EpsilonCoeffRow { c: 26.0, d: 0.0 },
+    EpsilonCoeffRow { c: 32.0, d: 0.0 },
+    EpsilonCoeffRow { c: 27.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: -24.0, d: 0.0 },
+    EpsilonCoeffRow { c: 16.0, d: 0.0 },
+    EpsilonCoeffRow { c: 13.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: -12.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: -10.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: -8.0, d: 0.0 },
+    EpsilonCoeffRow { c: 7.0, d: 0.0 },
+    EpsilonCoeffRow { c: 9.0, d: 0.0 },
+    EpsilonCoeffRow { c: 7.0, d: 0.0 },
+    EpsilonCoeffRow { c: 6.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 5.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: -3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: -3.0, d: 0.0 },
+    EpsilonCoeffRow { c: -3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 3.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+    EpsilonCoeffRow { c: 0.0, d: 0.0 },
+];
+
+const Y_TABLE: [YCoeffRow; 63] = [
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 0.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 0.0, y3: 0.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 1.0, y2: 0.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: -2.0, y1: 1.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 1.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: -2.0, y1: -1.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: -1.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: 0.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 1.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: -1.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: -1.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 1.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 2.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: -2.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 2.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 2.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 1.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 0.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: -1.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: 2.0, y2: 0.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: -1.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: -2.0, y1: 2.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 1.0, y2: 0.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 1.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: -1.0, y2: 0.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 2.0, y3: -2.0, y4: 0.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: -1.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: 1.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 1.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: -2.0, y1: 1.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: -1.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: 0.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 2.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 1.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: -2.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: 2.0, y1: 0.0, y2: 0.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: -1.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: -2.0, y1: -1.0, y2: 0.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 0.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 2.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: -2.0, y1: 0.0, y2: 2.0, y3: 0.0, y4: 1.0 },
+    YCoeffRow { y0: -2.0, y1: 1.0, y2: 0.0, y3: 2.0, y4: 1.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 1.0, y3: -2.0, y4: 0.0 },
+    YCoeffRow { y0: -1.0, y1: 0.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: -2.0, y1: 1.0, y2: 0.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 1.0, y1: 0.0, y2: 0.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 1.0, y3: 2.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: -2.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: -1.0, y1: -1.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: 1.0, y2: 1.0, y3: 0.0, y4: 0.0 },
+    YCoeffRow { y0: 0.0, y1: -1.0, y2: 1.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 2.0, y1: -1.0, y2: -1.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 0.0, y1: 0.0, y2: 3.0, y3: 2.0, y4: 2.0 },
+    YCoeffRow { y0: 2.0, y1: -1.0, y2: 0.0, y3: 2.0, y4: 2.0 },
+];
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{calc_julian_day, julian_century, julian_millennium, round_to_decimals};
+    use chrono::{TimeZone, Utc};
+
+    #[test]
+    fn dpsi_depsilon() {
+        let test_date = Utc.with_ymd_and_hms(2003, 10, 17, 19, 30, 30).unwrap();
+
+        let mut jd = calc_julian_day(&test_date);
+        assert_eq!(2452930.313, round_to_decimals(jd, 3), "Julian day failure");
+
+        jd += 67.0 / 86400.0; // In the example they mention dT
+
+        let jc = julian_century(jd);
+        let jm = julian_millennium(jc);
+
+        let (dpsi, depsilon) = calculate_dpsi_depsilon(jc);
+
+        assert_eq!(-0.00399840, round_to_decimals(dpsi, 7), "Failed to calculate delta PSI correcetly!");
+        assert_eq!(0.001667, round_to_decimals(depsilon, 6), "Failed to calculate delta epsilon correcetly!")
+
+    }
+}
