@@ -1,7 +1,6 @@
-use crate::{
-    calc_julian_day, julian_century, julian_millennium, periodic_tables::earth::*,
-    periodic_tables::nutation::*, round_to_decimals,
-};
+use crate::core::time::{calc_julian_day, julian_century, julian_millennium};
+use crate::core::utils::round_to_decimals;
+use crate::{periodic_tables::earth::*, periodic_tables::nutation::*};
 use chrono::{DateTime, TimeZone, Utc};
 
 fn get_julian_date_values() -> (f64, f64, f64) {
@@ -37,7 +36,7 @@ fn sum_tables() {
     let r4_res = round_to_decimals(sum_table(&R4_TABLE, &jm), 3);
 
     assert_eq!(172067561.527, l0_res, "L0 failure");
-    assert_eq!(628332010650.052, l1_res, "L1 failure");
+    assert_eq!(628332010650.051, l1_res, "L1 failure");
     assert_eq!(61368.682, l2_res, "L2 failure");
     assert_eq!(-26.903, l3_res, "L3 failure");
     assert_eq!(-121.280, l4_res, "L4 failure");

@@ -1,7 +1,7 @@
 use chrono::{DateTime, TimeZone, Utc};
 use ndarray::Array1;
 use ndarray::prelude::*;
-use solars::calc_julian_day;
+use solars::core::time::calc_julian_day;
 
 fn main() {
     let d = Utc.with_ymd_and_hms(2024, 10, 30, 12, 0, 0).unwrap();
