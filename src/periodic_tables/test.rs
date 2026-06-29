@@ -18,7 +18,7 @@ fn get_julian_date_values() -> (f64, f64, f64) {
 }
 
 #[test]
-fn sum_tables() {
+fn sum_tables_calculate_coords() {
     let (_, _, jm) = get_julian_date_values();
 
     let l0_res = round_to_decimals(sum_table(&L0_TABLE, &jm), 3);
@@ -50,6 +50,47 @@ fn sum_tables() {
     assert_eq!(-1140.954, r2_res, "R2 failure");
     assert_eq!(-141.115, r3_res, "R3 failure");
     assert_eq!(1.232, r4_res, "R4 failure");
+
+    let l = round_to_decimals(
+        calculate_heliocentric_coeff(
+            jm,
+            l0_res,
+            l1_res,
+            l2_res,
+            l3_res,
+            l4_res,
+            l5_res,
+            CoordType::Longitude,
+        ),
+        3,
+    );
+    let b = round_to_decimals(
+        calculate_heliocentric_coeff(jm, b0_res, b1_res, 0.0, 0.0, 0.0, 0.0, CoordType::Latitude),
+        6,
+    );
+    let r = round_to_decimals(
+        calculate_heliocentric_coeff(
+            jm,
+            r0_res,
+            r1_res,
+            r2_res,
+            r3_res,
+            r4_res,
+            0.0,
+            CoordType::Radius,
+        ),
+        3,
+    );
+
+    assert_eq!(24.018, l, "Heliocentric longitude failure");
+    assert_eq!(-0.000101, b, "Heliocentric latitude failure");
+    assert_eq!(0.997, r, "Earth radius vector failure");
+
+    let theta = round_to_decimals(calculate_geocentric_coeff(l, CoordType::Longitude), 3);
+    let beta = round_to_decimals(calculate_geocentric_coeff(b, CoordType::Latitude), 6);
+
+    assert_eq!(204.018, theta, "Geocentric longitude failure");
+    assert_eq!(0.000101, beta, "Geocentric latitude failure");
 }
 
 #[test]

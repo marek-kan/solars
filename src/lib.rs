@@ -1,9 +1,8 @@
-pub mod core;
+pub mod core; // for main.rs
 mod periodic_tables;
 
 use pyo3::prelude::*;
 
-/// A Python module implemented in Rust.
 #[pymodule]
 mod solars {
     use pyo3::prelude::*;

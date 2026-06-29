@@ -1,3 +1,9 @@
+pub(crate) enum CoordType {
+    Longitude,
+    Latitude,
+    Radius,
+}
+
 pub(crate) struct EarthPeriodicTermRow {
     a: f64,
     b: f64,
@@ -12,6 +18,55 @@ impl EarthPeriodicTermRow {
 
 pub(crate) fn sum_table(table: &[EarthPeriodicTermRow], jme: &f64) -> f64 {
     table.iter().map(|row| row.calculate_term(jme)).sum()
+}
+
+/// Returns:
+/// For CoordType::Longitude => degrees bounded to [0, 360]
+/// For CoordType::Latitude => degrees bounded to [0, 360]
+/// For CoordType::Radius => Astronomical Units
+pub(crate) fn calculate_heliocentric_coeff(
+    jme: f64,
+    c0: f64,
+    c1: f64,
+    c2: f64,
+    c3: f64,
+    c4: f64,
+    c5: f64,
+    coord_type: CoordType,
+) -> f64 {
+    let coord_rad =
+        (c0 + c1 * jme + c2 * jme.powi(2) + c3 * jme.powi(3) + c4 * jme.powi(4) + c5 * jme.powi(5))
+            / 10.0_f64.powi(8);
+
+    match coord_type {
+        CoordType::Longitude => limit_deg_to_360(coord_rad.to_degrees()),
+        CoordType::Latitude => limit_deg_to_360(coord_rad.to_degrees()),
+        CoordType::Radius => coord_rad,
+    }
+}
+
+/// Returns:
+/// For CoordType::Longitude => degrees bounded to [0, 360]
+/// For CoordType::Latitude => degrees bounded to [0, 360]
+/// For CoordType::Radius => Undefined
+pub(crate) fn calculate_geocentric_coeff(c: f64, coord_type: CoordType) -> f64 {
+    match coord_type {
+        CoordType::Longitude => limit_deg_to_360(c + 180.0),
+        CoordType::Latitude => limit_deg_to_360(-1.0 * c),
+        CoordType::Radius => {
+            panic!("`CoordType::Radius` is undefined for geocentric calculation")
+        }
+    }
+}
+
+fn limit_deg_to_360(deg: f64) -> f64 {
+    let f = (deg / 360.0).fract();
+
+    if deg.ceil() >= 0.0 {
+        360.0 * f
+    } else {
+        360.0 - 360.0 * f
+    }
 }
 
 pub(crate) const L0_TABLE: [EarthPeriodicTermRow; 64] = [
