@@ -1,3 +1,5 @@
+use crate::core::utils::limit_deg_to_360;
+
 pub(crate) enum CoordType {
     Longitude,
     Latitude,
@@ -56,16 +58,6 @@ pub(crate) fn calculate_geocentric_coeff(c: f64, coord_type: CoordType) -> f64 {
         CoordType::Radius => {
             panic!("`CoordType::Radius` is undefined for geocentric calculation")
         }
-    }
-}
-
-fn limit_deg_to_360(deg: f64) -> f64 {
-    let f = (deg / 360.0).fract();
-
-    if deg.ceil() >= 0.0 {
-        360.0 * f
-    } else {
-        360.0 - 360.0 * f
     }
 }
 
