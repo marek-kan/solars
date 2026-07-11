@@ -35,7 +35,6 @@ fn calculate_xi(jce: f64) -> [f64; 5] {
     res
 }
 
-
 /// both in degrees
 pub(crate) fn calculate_dpsi_depsilon(jce: f64) -> (f64, f64) {
     let xi = calculate_xi(jce);
