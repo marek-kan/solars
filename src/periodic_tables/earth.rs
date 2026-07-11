@@ -20,10 +20,10 @@ pub(crate) fn sum_table(table: &[EarthPeriodicTermRow], jme: &f64) -> f64 {
     table.iter().map(|row| row.calculate_term(jme)).sum()
 }
 
-/// Returns:
-/// For CoordType::Longitude => degrees bounded to [0, 360]
-/// For CoordType::Latitude => degrees bounded to [0, 360]
-/// For CoordType::Radius => Astronomical Units
+/// Returns:\
+/// `CoordType::Longitude` => degrees bounded to [0, 360]\
+/// `CoordType::Latitude` => degrees bounded to [0, 360]\
+/// `CoordType::Radius` => Astronomical Units
 pub(crate) fn calculate_heliocentric_coeff(
     jme: f64,
     c0: f64,
@@ -45,10 +45,10 @@ pub(crate) fn calculate_heliocentric_coeff(
     }
 }
 
-/// Returns:
-/// For CoordType::Longitude => degrees bounded to [0, 360]
-/// For CoordType::Latitude => degrees bounded to [0, 360]
-/// For CoordType::Radius => Undefined
+/// Returns:\
+/// `CoordType::Longitude` => degrees bounded to [0, 360]\
+/// `CoordType::Latitude` => degrees bounded to [0, 360]\
+/// `CoordType::Radius` => Undefined
 pub(crate) fn calculate_geocentric_coeff(c: f64, coord_type: CoordType) -> f64 {
     match coord_type {
         CoordType::Longitude => limit_deg_to_360(c + 180.0),

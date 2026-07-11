@@ -55,6 +55,20 @@ pub(crate) fn calculate_dpsi_depsilon(jce: f64) -> (f64, f64) {
     (dpsi / 36000000.0, depsilon / 36000000.0)
 }
 
+pub(crate) fn calculate_epsilon(jme: f64, depsilon: f64) -> f64 {
+    let u = jme / 10.0;
+    let e_0 = 84381.448 - 4680.93 * u - 1.55 * u.powi(2) + 1999.25 * u.powi(3)
+        - 51.38 * u.powi(4)
+        - 249.67 * u.powi(5)
+        - 39.05 * u.powi(6)
+        + 7.12 * u.powi(7)
+        + 27.87 * u.powi(8)
+        + 5.79 * u.powi(9)
+        + 2.45 * u.powi(10);
+
+    e_0 / 3600.0 + depsilon
+}
+
 const X_TABLE: [XCoeffRow; 5] = [
     // X0 = 297.85036 + 445267.111480 * JCE - 0.0019142 * JCE^2 + JCE^3 / 189474
     XCoeffRow {
