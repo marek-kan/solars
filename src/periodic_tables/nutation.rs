@@ -35,6 +35,8 @@ fn calculate_xi(jce: f64) -> [f64; 5] {
     res
 }
 
+
+/// both in degrees
 pub(crate) fn calculate_dpsi_depsilon(jce: f64) -> (f64, f64) {
     let xi = calculate_xi(jce);
     let mut dpsi = 0.0;
@@ -55,6 +57,7 @@ pub(crate) fn calculate_dpsi_depsilon(jce: f64) -> (f64, f64) {
     (dpsi / 36000000.0, depsilon / 36000000.0)
 }
 
+/// degrees
 pub(crate) fn calculate_epsilon(jme: f64, depsilon: f64) -> f64 {
     let u = jme / 10.0;
     let e_0 = 84381.448 - 4680.93 * u - 1.55 * u.powi(2) + 1999.25 * u.powi(3)
