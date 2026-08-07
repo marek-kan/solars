@@ -41,7 +41,7 @@ pub(crate) fn geocentric_sun_declination(lambda: f64, epsilon: f64, beta: f64) -
 
     (b.sin() * e.cos() + b.cos() * e.sin() * l.sin())
         .asin()
-        .to_degrees()
+        // .to_degrees()
 }
 
 /// H (degrees)
@@ -49,7 +49,8 @@ pub(crate) fn obs_local_hour_angle(lon: f64, v: f64, alpha: f64) -> f64 {
     limit_deg_to_360(v + lon - alpha)
 }
 
-pub(crate) fn calculate_topocentric_sun_right_ascension_declination(lat: f64, elevation: f64, r: f64) -> f64 {
+/// delta' (in degrees)
+pub(crate) fn calculate_topocentric_sun_right_ascension_declination(lat: f64, elevation: f64, r: f64, hour_angle: f64, geoc_sun_declination: f64, sun_right_ascension: f64) -> f64 {
     let lat_rad = lat.to_radians();
 
     let e = 8.794 / (3600.0 * r);
@@ -57,7 +58,9 @@ pub(crate) fn calculate_topocentric_sun_right_ascension_declination(lat: f64, el
     let x = u.cos() + elevation / 6378140.0 * lat_rad.cos();
     let y = 0.99664719 * u.sin() + elevation / 6378140.0 * lat_rad.sin();
 
-    // let d_alpha = 
+    let d_alpha = (-x * e.sin() * hour_angle.sin()).atan2(geoc_sun_declination.cos() * e.sin() * hour_angle.cos());
     
-    todo!()
+    // alpha_ = sun_right_ascension + d_alpha.to_degrees();
+
+    ((geoc_sun_declination.sin() - y * e.sin()) * d_alpha.cos()).atan2(geoc_sun_declination.cos() - x * e.sin() * hour_angle.cos()) // 39
 }
