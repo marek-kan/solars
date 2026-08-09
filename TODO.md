@@ -1,5 +1,11 @@
+# How to compile
+
 `RUSTFLAGS="-C target-cpu=x86-64-v3" maturin develop --release`
 It can improve code generation, but it would make a distributed wheel fail on older CPUs. For a local deployment, it can be a benchmark configuration:
+
+# Refactor
+
+Understand and refactor `ObserverLatitudeGeometry` and `grid.rs` 
 
 # POA
 
