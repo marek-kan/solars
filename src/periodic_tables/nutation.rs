@@ -1,4 +1,10 @@
 use super::*;
+use std::f64::consts::PI;
+
+// 36,000,000 tenths of milliarcseconds per degree * 180 degrees per pi radians
+const TENTHS_MAS_TO_RAD: f64 = PI / 6_480_000_000.0;
+// 3,600 arcseconds per degree * 180 degrees per pi radians
+const ARCSEC_TO_RAD: f64 = PI / 648_000.0;
 
 struct PsiCoeffRow {
     a: f64,
@@ -35,7 +41,7 @@ fn calculate_xi(jce: f64) -> [f64; 5] {
     res
 }
 
-/// both in degrees
+/// both in radians
 pub(crate) fn calculate_dpsi_depsilon(jce: f64) -> (f64, f64) {
     let xi = calculate_xi(jce);
     let mut dpsi = 0.0;
@@ -53,10 +59,16 @@ pub(crate) fn calculate_dpsi_depsilon(jce: f64) -> (f64, f64) {
         depsilon += (epsilon.c + epsilon.d * jce) * arg.cos();
     }
 
-    (dpsi / 36000000.0, depsilon / 36000000.0)
+    (dpsi * TENTHS_MAS_TO_RAD, depsilon * TENTHS_MAS_TO_RAD)
+
+    // Would be in degrees
+    // (
+    // (dpsi / 36000000.0),
+    // (depsilon / 36000000.0),
+    // )
 }
 
-/// degrees
+/// radians
 pub(crate) fn calculate_epsilon(jme: f64, depsilon: f64) -> f64 {
     let u = jme / 10.0;
     let e_0 = 84381.448 - 4680.93 * u - 1.55 * u.powi(2) + 1999.25 * u.powi(3)
@@ -68,7 +80,7 @@ pub(crate) fn calculate_epsilon(jme: f64, depsilon: f64) -> f64 {
         + 5.79 * u.powi(9)
         + 2.45 * u.powi(10);
 
-    e_0 / 3600.0 + depsilon
+    e_0 * ARCSEC_TO_RAD + depsilon
 }
 
 const X_TABLE: [XCoeffRow; 5] = [

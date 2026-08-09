@@ -1,5 +1,3 @@
-use crate::core::utils::limit_deg_to_360;
-
 pub(crate) enum CoordType {
     Longitude,
     Latitude,
@@ -23,8 +21,8 @@ pub(crate) fn sum_table(table: &[EarthPeriodicTermRow], jme: &f64) -> f64 {
 }
 
 /// Returns:\
-/// `CoordType::Longitude` => degrees bounded to [0, 360]\
-/// `CoordType::Latitude` => degrees bounded to [0, 360]\
+/// `CoordType::Longitude` => radians bounded to [0, TAU]\
+/// `CoordType::Latitude` => radians\
 /// `CoordType::Radius` => Astronomical Units
 pub(crate) fn calculate_heliocentric_coeff(
     jme: f64,
@@ -41,20 +39,20 @@ pub(crate) fn calculate_heliocentric_coeff(
             / 10.0_f64.powi(8);
 
     match coord_type {
-        CoordType::Longitude => limit_deg_to_360(coord_rad.to_degrees()),
-        CoordType::Latitude => coord_rad.to_degrees(),
+        CoordType::Longitude => coord_rad.rem_euclid(std::f64::consts::TAU),
+        CoordType::Latitude => coord_rad,
         CoordType::Radius => coord_rad,
     }
 }
 
 /// Returns:\
-/// `CoordType::Longitude` => degrees bounded to [0, 360]\
-/// `CoordType::Latitude` => degrees bounded to [0, 360]\
+/// `CoordType::Longitude` => radians bounded to [0, TAU]\
+/// `CoordType::Latitude` => radians\
 /// `CoordType::Radius` => Undefined
 pub(crate) fn calculate_geocentric_coeff(c: f64, coord_type: CoordType) -> f64 {
     match coord_type {
-        CoordType::Longitude => limit_deg_to_360(c + 180.0),
-        CoordType::Latitude => limit_deg_to_360(-1.0 * c),
+        CoordType::Longitude => (c + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU),
+        CoordType::Latitude => -c,
         CoordType::Radius => {
             panic!("`CoordType::Radius` is undefined for geocentric calculation")
         }

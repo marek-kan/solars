@@ -26,7 +26,8 @@ fn get_julian_date_values() -> (f64, f64, f64, f64) {
 #[test]
 fn end_to_end_test() {
     let (jd_ut, _, jc, jm) = get_julian_date_values();
-    let (lat, lon) = (39.742476, -105.1786);
+    let (lat, lon): (f64, f64) = (39.742476, -105.1786);
+    let (lat_rad, lon_rad) = (lat.to_radians(), lon.to_radians());
 
     let l0 = sum_table(&L0_TABLE, &jm);
     let l1 = sum_table(&L1_TABLE, &jm);
@@ -78,12 +79,12 @@ fn end_to_end_test() {
 
     assert_eq!(
         24.018,
-        round_to_decimals(l, 3),
+        round_to_decimals(l.to_degrees(), 3),
         "Heliocentric longitude failure, got {l}"
     );
     assert_eq!(
         -0.000101,
-        round_to_decimals(b, 6),
+        round_to_decimals(b.to_degrees(), 6),
         "Heliocentric latitude failure, got {b}"
     );
     assert_eq!(
@@ -97,12 +98,12 @@ fn end_to_end_test() {
 
     assert_eq!(
         204.0182617,
-        round_to_decimals(theta, 7),
+        round_to_decimals(theta.to_degrees(), 7),
         "Geocentric longitude failure, got {theta}"
     );
     assert_eq!(
         0.0001011219,
-        round_to_decimals(beta, 10),
+        round_to_decimals(beta.to_degrees(), 10),
         "Geocentric latitude failure, got {beta}"
     );
 
@@ -111,17 +112,17 @@ fn end_to_end_test() {
 
     assert_eq!(
         -0.003998,
-        round_to_decimals(dpsi, 6),
+        round_to_decimals(dpsi.to_degrees(), 6),
         "delta psi failure, got {dpsi}"
     );
     assert_eq!(
         0.001667,
-        round_to_decimals(deps, 6),
+        round_to_decimals(deps.to_degrees(), 6),
         "delta epsilon failure, got {deps}"
     );
     assert_eq!(
         23.440465,
-        round_to_decimals(eps, 6),
+        round_to_decimals(eps.to_degrees(), 6),
         "epsilon failure, got {eps}"
     );
 
@@ -130,14 +131,14 @@ fn end_to_end_test() {
 
     assert_eq!(
         204.008552,
-        round_to_decimals(lambda, 6),
+        round_to_decimals(lambda.to_degrees(), 6),
         "Apparent sun longitude failure, got {lambda}",
     );
 
     let alpha = geocentric_sun_right_ascension(lambda, eps, beta);
     assert_eq!(
         202.22741,
-        round_to_decimals(alpha, 5),
+        round_to_decimals(alpha.to_degrees(), 5),
         "Geocentric sun right ascension, got {alpha}",
     );
 
@@ -149,41 +150,35 @@ fn end_to_end_test() {
     );
 
     let v = sidereal_time_greenwich(jd_ut, jc, dpsi, eps);
-    let hour_angle = obs_local_hour_angle(lon, v, alpha);
+    let hour_angle = obs_local_hour_angle(lon_rad, v, alpha);
     assert_eq!(
         11.1059,
-        round_to_decimals(hour_angle, 4),
+        round_to_decimals(hour_angle.to_degrees(), 4),
         "Observer local hour angle failure, got {hour_angle}"
     );
 
     let (delta_, hour_angle_) = topocentric_sun_right_ascension_declination_and_local_hour_angle(
-        lat, 1830.14, r, hour_angle, delta,
+        lat_rad, 1830.14, r, hour_angle, delta,
     );
     assert_eq!(
         11.1063,
-        round_to_decimals(hour_angle_, 4),
+        round_to_decimals(hour_angle_.to_degrees(), 4),
         "Topocentric local hour angle failure, got {hour_angle_}"
     );
     assert_eq!(
         -9.316179,
-        round_to_decimals(delta_, 6),
+        round_to_decimals(delta_.to_degrees(), 6),
         "Topocentric sun right ascension declination failure, got {delta_}"
     );
 
     let temperature = Some(11.0);
     let pressure = Some(820.0);
 
-    let e0 = topocentric_elevation_angle(
-        lat,
-        delta_.to_radians(),
-        hour_angle_.to_radians(),
-        pressure,
-        temperature,
-    );
-    let zenith = topocentric_zenith_angle(e0);
-    let azimuth_w_s =
-        topocentric_azimuth_angle_w_from_s(hour_angle_.to_radians(), lat, delta_.to_radians());
-    let azimuth = topocentric_azimuth_angle_e_from_n(azimuth_w_s);
+    let e0 = topocentric_elevation_angle(lat_rad, delta_, hour_angle_, pressure, temperature);
+    let zenith = topocentric_zenith_angle(e0.to_degrees());
+    let azimuth_w_s = topocentric_azimuth_angle_w_from_s(lat_rad, hour_angle_, delta_);
+    let azimuth = topocentric_azimuth_angle_e_from_n(azimuth_w_s.to_degrees());
+    let azimuth2 = topocentric_azimuth(lat, hour_angle_.to_degrees(), delta_.to_degrees());
 
     assert_eq!(
         50.11162,
@@ -194,5 +189,9 @@ fn end_to_end_test() {
         194.34024,
         round_to_decimals(azimuth, 5),
         "Topocentric azimuth failure, got {azimuth}"
+    );
+    assert_eq!(
+        azimuth, azimuth2,
+        "`topocentric_azimuth` failure, got {azimuth2}"
     );
 }

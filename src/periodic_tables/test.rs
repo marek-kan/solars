@@ -31,12 +31,12 @@ fn dpsi_depsilon() {
 
     assert_eq!(
         -0.00399840,
-        round_to_decimals(dpsi, 7),
+        round_to_decimals(dpsi.to_degrees(), 7),
         "Failed to calculate delta PSI correcetly!"
     );
     assert_eq!(
         0.001667,
-        round_to_decimals(depsilon, 6),
+        round_to_decimals(depsilon.to_degrees(), 6),
         "Failed to calculate delta epsilon correcetly!"
     )
 }
