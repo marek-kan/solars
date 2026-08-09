@@ -1,7 +1,6 @@
 use chrono::{DateTime, TimeZone, Utc};
 use ndarray::Array1;
 use ndarray::prelude::*;
-use solars::core::time::calc_julian_day;
 
 /// Outdated, do not take into account
 fn main() {

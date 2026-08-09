@@ -178,7 +178,6 @@ fn end_to_end_test() {
     let zenith = topocentric_zenith_angle(e0.to_degrees());
     let azimuth_w_s = topocentric_azimuth_angle_w_from_s(lat_rad, hour_angle_, delta_);
     let azimuth = topocentric_azimuth_angle_e_from_n(azimuth_w_s.to_degrees());
-    let azimuth2 = topocentric_azimuth(lat, hour_angle_.to_degrees(), delta_.to_degrees());
 
     assert_eq!(
         50.11162,
@@ -189,9 +188,5 @@ fn end_to_end_test() {
         194.34024,
         round_to_decimals(azimuth, 5),
         "Topocentric azimuth failure, got {azimuth}"
-    );
-    assert_eq!(
-        azimuth, azimuth2,
-        "`topocentric_azimuth` failure, got {azimuth2}"
     );
 }

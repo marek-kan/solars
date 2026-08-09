@@ -129,7 +129,7 @@ pub(crate) fn atmospheric_refraction_angle(
 
 /// phi (degrees)
 /// topocentric_elevation angle in degrees
-pub fn topocentric_zenith_angle(topocentric_elevation_angle: f64) -> f64 {
+pub(crate) fn topocentric_zenith_angle(topocentric_elevation_angle: f64) -> f64 {
     90.0 - topocentric_elevation_angle
 }
 
@@ -146,21 +146,11 @@ pub(crate) fn topocentric_azimuth_angle_w_from_s(
 
 /// capital phi (degrees eastward from north)
 /// for navigators and solar radiotion
-pub fn topocentric_azimuth_angle_e_from_n(topocentric_azimuth_angle_w_from_south: f64) -> f64 {
-    limit_deg_to_360(topocentric_azimuth_angle_w_from_south + 180.0)
-}
-
-pub fn topocentric_azimuth(
-    lat: f64,
-    topocentric_hour_angle: f64,
-    topocentric_sun_declination: f64,
+/// topocentric_azimuth_angle_w_from_south: degrees
+pub(crate) fn topocentric_azimuth_angle_e_from_n(
+    topocentric_azimuth_angle_w_from_south: f64,
 ) -> f64 {
-    let hour_angle_rad = topocentric_hour_angle.to_radians();
-    let lat_rad = lat.to_radians();
-    let sun_declination_rad = topocentric_sun_declination.to_radians();
-
-    let w_form_s = topocentric_azimuth_angle_w_from_s(lat_rad, hour_angle_rad, sun_declination_rad);
-    topocentric_azimuth_angle_e_from_n(w_form_s.to_degrees())
+    limit_deg_to_360(topocentric_azimuth_angle_w_from_south + 180.0)
 }
 
 /// all inputs should be degrees
