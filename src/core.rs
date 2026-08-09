@@ -2,9 +2,15 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
+pub mod grid;
 pub(crate) mod solar_position;
 pub(crate) mod time;
 pub(crate) mod utils;
+
+pub use grid::{
+    AoiInput, AoiResult, AtmosphericInput, SolarError, SolarPositionInput, SolarPositionResult,
+    SpatialInput, calculate_aoi, calculate_solar_position,
+};
 
 use crate::core::solar_position::{
     aberration_correction, apparent_sun_longitude, geocentric_sun_declination,
@@ -35,7 +41,7 @@ use crate::periodic_tables::nutation::{calculate_dpsi_depsilon, calculate_epsilo
 /// Missing elevation defaults to sea level. Atmospheric refraction is
 /// applied only when both pressure and temperature are provided. `aoi` is only
 /// included when both panel values are provided.
-pub fn calculate_solar_position(
+pub fn calculate_scalar_solar_position(
     latitude: f64,
     longitude: f64,
     time: DateTime<Utc>,
@@ -157,14 +163,14 @@ pub fn calculate_solar_position(
 
 #[cfg(test)]
 mod tests {
-    use super::calculate_solar_position;
+    use super::calculate_scalar_solar_position;
     use crate::core::utils::round_to_decimals;
     use chrono::{TimeZone, Utc};
 
     #[test]
     fn solar_position_omits_aoi_without_complete_panel_geometry() {
         let time = Utc.with_ymd_and_hms(2003, 10, 17, 19, 30, 30).unwrap();
-        let result = calculate_solar_position(
+        let result = calculate_scalar_solar_position(
             39.742476,
             -105.1786,
             time,
@@ -186,7 +192,7 @@ mod tests {
     #[test]
     fn solar_position_includes_aoi_with_complete_panel_geometry() {
         let time = Utc.with_ymd_and_hms(2003, 10, 17, 19, 30, 30).unwrap();
-        let result = calculate_solar_position(
+        let result = calculate_scalar_solar_position(
             39.742476,
             -105.1786,
             time,
