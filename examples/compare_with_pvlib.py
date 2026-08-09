@@ -20,7 +20,7 @@ import pvlib
 import solars
 
 THREADS = 4
-REPEATS = 100
+REPEATS = 5000
 MAX_ACCEPTABLE_DIFFERENCE_DEGREES = 0.01
 
 

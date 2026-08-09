@@ -7,9 +7,10 @@ use std::fmt::{Display, Formatter};
 use crate::core::solar_position::{
     aberration_correction, apparent_sun_longitude, geocentric_sun_declination,
     geocentric_sun_right_ascension, obs_local_hour_angle, sidereal_time_greenwich,
-    topocentric_azimuth_angle_e_from_n, topocentric_azimuth_angle_w_from_s,
-    topocentric_elevation_angle, topocentric_sun_right_ascension_declination_and_local_hour_angle,
-    topocentric_zenith_angle,
+    topocentric_azimuth_angle_e_from_n, topocentric_zenith_angle, ObserverLatitudeGeometry,
+    topocentric_azimuth_angle_w_from_s_with_geometry,
+    topocentric_elevation_angle_with_geometry,
+    topocentric_sun_right_ascension_declination_and_local_hour_angle_with_geometry,
 };
 use crate::core::time::{calc_julian_day, delta_t_seconds, julian_century, julian_millennium};
 use crate::periodic_tables::earth::{
@@ -153,6 +154,19 @@ pub fn calculate_solar_position(
         .iter()
         .map(calculate_time_geometry)
         .collect::<Result<Vec<_>, _>>()?;
+    let latitude_geometry = input
+        .latitude
+        .iter()
+        .copied()
+        .map(ObserverLatitudeGeometry::from_degrees)
+        .collect::<Vec<_>>();
+    let longitude_radians = input
+        .longitude
+        .iter()
+        .copied()
+        .map(f64::to_radians)
+        .collect::<Vec<_>>();
+
     let cells_per_time = shape.1 * shape.2;
     let mut zenith_values = vec![0.0; shape.0 * cells_per_time];
     let mut azimuth_values = vec![0.0; shape.0 * cells_per_time];
@@ -180,8 +194,7 @@ pub fn calculate_solar_position(
                     let cell_index = output_index % cells_per_time;
                     let latitude_index = cell_index / shape.2;
                     let longitude_index = cell_index % shape.2;
-                    let elevation =
-                        spatial_value(&input.elevation, latitude_index, longitude_index);
+                    let elevation = spatial_value(&input.elevation, latitude_index, longitude_index);
                     let pressure = atmospheric_value(
                         &input.pressure,
                         time_index,
@@ -195,8 +208,8 @@ pub fn calculate_solar_position(
                         longitude_index,
                     );
                     (*zenith, *azimuth) = calculate_cell(
-                        input.latitude[latitude_index],
-                        input.longitude[longitude_index],
+                        &latitude_geometry[latitude_index],
+                        longitude_radians[longitude_index],
                         elevation,
                         pressure,
                         temperature,
@@ -360,37 +373,36 @@ fn calculate_time_geometry(timestamp_nanoseconds: &i64) -> Result<TimeGeometry, 
 }
 
 fn calculate_cell(
-    latitude: f64,
-    longitude: f64,
+    latitude: &ObserverLatitudeGeometry,
+    longitude_radians: f64,
     elevation: f64,
     pressure: f64,
     temperature: f64,
     geometry: &TimeGeometry,
 ) -> (f64, f64) {
-    let latitude_radians = latitude.to_radians();
     let hour_angle = obs_local_hour_angle(
-        longitude.to_radians(),
+        longitude_radians,
         geometry.sidereal_time,
         geometry.right_ascension,
     );
     let (topocentric_declination, topocentric_hour_angle) =
-        topocentric_sun_right_ascension_declination_and_local_hour_angle(
-            latitude_radians,
+        topocentric_sun_right_ascension_declination_and_local_hour_angle_with_geometry(
+            latitude,
             elevation,
             geometry.radius,
             hour_angle,
             geometry.declination,
         );
-    let elevation_angle = topocentric_elevation_angle(
-        latitude_radians,
+    let elevation_angle = topocentric_elevation_angle_with_geometry(
+        latitude,
         topocentric_declination,
         topocentric_hour_angle,
         Some(pressure),
         Some(temperature),
     );
     let zenith = topocentric_zenith_angle(elevation_angle.to_degrees());
-    let azimuth_west_from_south = topocentric_azimuth_angle_w_from_s(
-        latitude_radians,
+    let azimuth_west_from_south = topocentric_azimuth_angle_w_from_s_with_geometry(
+        latitude,
         topocentric_hour_angle,
         topocentric_declination,
     );
