@@ -1,101 +1,31 @@
+use crate::core::solar_position::*;
 use crate::core::time::{calc_julian_day, julian_century, julian_millennium};
 use crate::core::utils::round_to_decimals;
 use crate::{periodic_tables::earth::*, periodic_tables::nutation::*};
 use chrono::{DateTime, TimeZone, Utc};
 
-fn get_julian_date_values() -> (f64, f64, f64) {
+fn get_julian_date_values() -> (f64, f64, f64, f64) {
     let test_date: DateTime<Utc> = Utc.with_ymd_and_hms(2003, 10, 17, 19, 30, 30).unwrap();
 
-    let mut jd = calc_julian_day(&test_date);
-    assert_eq!(2452930.313, round_to_decimals(jd, 3), "Julian day failure");
+    let jd_ut = calc_julian_day(&test_date);
 
-    jd += 67.0 / 86400.0; // In the example they mention dT
+    assert_eq!(
+        2452930.313,
+        round_to_decimals(jd_ut, 3),
+        "Julian day failure"
+    );
 
-    let jc = julian_century(jd);
+    let jd_tt = jd_ut + 67.0 / 86400.0; // In the example they mention dT
+
+    let jc = julian_century(jd_tt);
     let jm = julian_millennium(jc);
 
-    (jd, jc, jm)
-}
-
-#[test]
-fn sum_tables_calculate_coords() {
-    let (_, _, jm) = get_julian_date_values();
-
-    let l0_res = round_to_decimals(sum_table(&L0_TABLE, &jm), 3);
-    let l1_res = round_to_decimals(sum_table(&L1_TABLE, &jm), 3);
-    let l2_res = round_to_decimals(sum_table(&L2_TABLE, &jm), 3);
-    let l3_res = round_to_decimals(sum_table(&L3_TABLE, &jm), 3);
-    let l4_res = round_to_decimals(sum_table(&L4_TABLE, &jm), 3);
-    let l5_res = round_to_decimals(sum_table(&L5_TABLE, &jm), 3);
-    let b0_res = round_to_decimals(sum_table(&B0_TABLE, &jm), 3);
-    let b1_res = round_to_decimals(sum_table(&B1_TABLE, &jm), 3);
-    let r0_res = round_to_decimals(sum_table(&R0_TABLE, &jm), 3);
-    let r1_res = round_to_decimals(sum_table(&R1_TABLE, &jm), 3);
-    let r2_res = round_to_decimals(sum_table(&R2_TABLE, &jm), 3);
-    let r3_res = round_to_decimals(sum_table(&R3_TABLE, &jm), 3);
-    let r4_res = round_to_decimals(sum_table(&R4_TABLE, &jm), 3);
-
-    assert_eq!(172067561.527, l0_res, "L0 failure");
-    assert_eq!(628332010650.051, l1_res, "L1 failure");
-    assert_eq!(61368.682, l2_res, "L2 failure");
-    assert_eq!(-26.903, l3_res, "L3 failure");
-    assert_eq!(-121.280, l4_res, "L4 failure");
-    assert_eq!(-1.000, l5_res, "L5 failure");
-
-    assert_eq!(-176.503, b0_res, "B0 failure");
-    assert_eq!(3.068, b1_res, "B1 failure");
-
-    assert_eq!(99653849.038, r0_res, "R0 failure");
-    assert_eq!(100378.567, r1_res, "R1 failure");
-    assert_eq!(-1140.954, r2_res, "R2 failure");
-    assert_eq!(-141.115, r3_res, "R3 failure");
-    assert_eq!(1.232, r4_res, "R4 failure");
-
-    let l = round_to_decimals(
-        calculate_heliocentric_coeff(
-            jm,
-            l0_res,
-            l1_res,
-            l2_res,
-            l3_res,
-            l4_res,
-            l5_res,
-            CoordType::Longitude,
-        ),
-        3,
-    );
-    let b = round_to_decimals(
-        calculate_heliocentric_coeff(jm, b0_res, b1_res, 0.0, 0.0, 0.0, 0.0, CoordType::Latitude),
-        6,
-    );
-    let r = round_to_decimals(
-        calculate_heliocentric_coeff(
-            jm,
-            r0_res,
-            r1_res,
-            r2_res,
-            r3_res,
-            r4_res,
-            0.0,
-            CoordType::Radius,
-        ),
-        3,
-    );
-
-    assert_eq!(24.018, l, "Heliocentric longitude failure");
-    assert_eq!(-0.000101, b, "Heliocentric latitude failure");
-    assert_eq!(0.997, r, "Earth radius vector failure");
-
-    let theta = round_to_decimals(calculate_geocentric_coeff(l, CoordType::Longitude), 3);
-    let beta = round_to_decimals(calculate_geocentric_coeff(b, CoordType::Latitude), 6);
-
-    assert_eq!(204.018, theta, "Geocentric longitude failure");
-    assert_eq!(0.000101, beta, "Geocentric latitude failure");
+    (jd_ut, jd_tt, jc, jm)
 }
 
 #[test]
 fn dpsi_depsilon() {
-    let (_, jc, _) = get_julian_date_values();
+    let (_, _, jc, _) = get_julian_date_values();
 
     let (dpsi, depsilon) = calculate_dpsi_depsilon(jc);
 

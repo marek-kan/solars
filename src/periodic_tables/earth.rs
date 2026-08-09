@@ -42,7 +42,7 @@ pub(crate) fn calculate_heliocentric_coeff(
 
     match coord_type {
         CoordType::Longitude => limit_deg_to_360(coord_rad.to_degrees()),
-        CoordType::Latitude => limit_deg_to_360(coord_rad.to_degrees()),
+        CoordType::Latitude => coord_rad.to_degrees(),
         CoordType::Radius => coord_rad,
     }
 }

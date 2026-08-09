@@ -1,6 +1,8 @@
 pub mod core; // for main.rs
 mod periodic_tables;
 
+#[cfg(test)]
+mod test;
 use pyo3::prelude::*;
 
 #[pymodule]
