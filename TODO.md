@@ -1,3 +1,9 @@
+# TODO
+
+1) refractive/Optical loss in aoi, thermal loss in python (xarray)
+2) clearsky GHI
+3) POA
+
 # How to compile
 
 `RUSTFLAGS="-C target-cpu=x86-64-v3" maturin develop --release`
