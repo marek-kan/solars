@@ -10,7 +10,7 @@ Understand and refactor `ObserverLatitudeGeometry` and `grid.rs`
 # Clearsky
 
 Use ineichen model, TL from `LinkeTurbidities.h5`, AM calculates as `am = 1 / (cos(zenith_rad) + 0.50572 * ((06.07995 - zenith_angle_deg)**-1.6364))`
-use [book](https://www.osti.gov/servlets/purl/1039404) equations 12, 13 with x being `(2pi(n-1))/365`
+for I_0 use [book](https://www.osti.gov/servlets/purl/1039404) equations 12, 13 with x being `(2pi(n-1))/365`
 
 # POA
 
@@ -70,3 +70,129 @@ When using forecast data like **ECMWF IFS**, **Hay & Davies** is often a **super
 *   **Consider Perez** only if you have high-confidence, direct forecasts for all three components (GHI, DNI, DHI) and require the specific horizon-brightening physics for a specific site calibration, though the marginal gain is often negligible compared to the inherent uncertainty of the weather model itself.
 
 ---
+
+```python
+import numpy as np
+
+def calculate_poa_hay_davies(
+    ghi: np.ndarray,
+    dhi: np.ndarray,
+    dni: np.ndarray,
+    solar_zenith_deg: np.ndarray,
+    aoi_deg: np.ndarray,
+    surface_tilt_deg: float,
+    dni_extra: np.ndarray = 1361.0,
+    albedo: float = 0.2,
+    zenith_threshold_deg: float = 85.0
+) -> dict:
+    """
+    Calculates Plane of Array (POA) irradiance using the Hay & Davies anisotropic model.
+
+    Parameters:
+    -----------
+    ghi : np.ndarray
+        Global Horizontal Irradiance (W/m²)
+    dhi : np.ndarray
+        Diffuse Horizontal Irradiance (W/m²)
+    dni : np.ndarray
+        Direct Normal Irradiance (W/m²)
+    solar_zenith_deg : np.ndarray
+        Solar zenith angle in degrees (0° = directly overhead)
+    aoi_deg : np.ndarray
+        Angle of incidence between solar vector and module surface normal in degrees
+    surface_tilt_deg : float or np.ndarray
+        Array tilt angle from horizontal in degrees (0° = flat)
+    dni_extra : float or np.ndarray, optional
+        Extraterrestrial normal irradiance (W/m²), defaults to solar constant 1361.0
+    albedo : float, optional
+        Ground reflectance factor (0.2 is standard grass/soil)
+    zenith_threshold_deg : float, optional
+        Zenith angle beyond which beam & circumsolar are forced to 0 (default 85.0°)
+
+    Returns:
+    --------
+    dict containing arrays for:
+        - 'poa_global': Total incident POA irradiance (W/m²)
+        - 'poa_direct': Direct beam component (W/m²)
+        - 'poa_diffuse': Sky diffuse component (W/m²)
+        - 'poa_ground': Ground-reflected component (W/m²)
+    """
+    # Convert angles from degrees to radians
+    zenith_rad = np.radians(solar_zenith_deg)
+    aoi_rad = np.radians(aoi_deg)
+    tilt_rad = np.radians(surface_tilt_deg)
+
+    # Calculate trigonometric terms
+    cos_zenith = np.cos(zenith_rad)
+    cos_aoi = np.cos(aoi_rad)
+
+    # Mask daytime / valid geometry conditions
+    is_daylight = (solar_zenith_deg < zenith_threshold_deg) & (cos_zenith > 0)
+    is_sun_facing = (cos_aoi > 0)
+
+    # 1. Direct Beam Component
+    # Beam is 0 if sun is below horizon threshold OR behind the module face
+    poa_direct = np.where(is_daylight & is_sun_facing, dni * cos_aoi, 0.0)
+
+    # 2. Geometric Projection Ratio (Rb = cos(AOI) / cos(Zenith))
+    # Safeguard against division-by-zero near horizon
+    rb = np.zeros_like(ghi)
+    np.divide(cos_aoi, cos_zenith, out=rb, where=is_daylight)
+    rb = np.maximum(rb, 0.0)  # Cannot be negative
+
+    # 3. Anisotropy Index (Ai = DNI / DNI_extra)
+    # Scaled atmospheric transmittance indicator constrained between [0, 1]
+    anisotropy_index = np.clip(dni / dni_extra, 0.0, 1.0)
+
+    # 4. Sky Diffuse Component (Hay & Davies equation)
+    # Term A: Circumsolar diffuse component = DHI * Ai * Rb
+    # Term B: Isotropic diffuse component   = DHI * (1 - Ai) * ((1 + cos(tilt)) / 2)
+    view_factor_sky = (1.0 + np.cos(tilt_rad)) / 2.0
+    
+    circumsolar = dhi * anisotropy_index * rb
+    isotropic_background = dhi * (1.0 - anisotropy_index) * view_factor_sky
+
+    poa_diffuse = circumsolar + isotropic_background
+
+    # 5. Ground-Reflected Component
+    view_factor_ground = (1.0 - np.cos(tilt_rad)) / 2.0
+    poa_ground = ghi * albedo * view_factor_ground
+
+    # Total POA Irradiance
+    poa_global = poa_direct + poa_diffuse + poa_ground
+
+    return {
+        "poa_global": poa_global,
+        "poa_direct": poa_direct,
+        "poa_diffuse": poa_diffuse,
+        "poa_ground": poa_ground
+    }
+```
+ Mathematical FormulationTotal 
+ POA Irradiance ($E_{POA}$) is the sum of three distinct components: direct beam, sky diffuse, and ground-reflected radiation:
+ 
+ $$E_{POA} = E_{beam} + E_{sky,diffuse} + E_{ground,reflected}$$
+ 
+ ## 1. Direct Beam Component ($E_{beam}$)
+ 
+ $$E_{beam} = DNI \cdot \cos(\theta)$$
+ 
+ Where $DNI$ is Direct Normal Irradiance and $\theta$ is the Angle of Incidence (AOI) between the solar vector and panel normal.
+ 
+ ## 2. Sky Diffuse Component ($E_{sky,diffuse}$) — Hay & Davies Model
+ 
+ $$E_{sky,diffuse} = DHI \left[ A_i R_b + (1 - A_i) \left( \frac{1 + \cos\beta}{2} \right) \right]$$
+
+Where:
+$DHI$: Diffuse Horizontal Irradiance  
+$A_i$: Anisotropy Index, defined as $A_i = \frac{DNI}{E_{extra}}$ (ratio of $DNI$ to extraterrestrial normal irradiance 
+$E_{extra}$). $A_i$ represents atmospheric transmittance for beam radiation.
+$R_b$: Direct beam geometric projection ratio, 
+$R_b = \frac{\cos\theta}{\cos\theta_z}$ (where $\theta_z$ is the solar zenith angle).  
+$\beta$: Array tilt angle from horizontal.  How the equation behaves:Clear Sky Conditions ($A_i \to 1$): 
+Atmospheric transmittance is high. $E_{sky,diffuse}$ becomes dominated by the circumsolar term $DHI \cdot R_b$, matching beam geometry.Overcast Conditions ($A_i \to 0$): $DNI$ drops to near zero. The circumsolar portion vanishes, reducing the equation to the classic isotropic sky model $DHI \cdot \frac{1 + \cos\beta}{2}$.  
+## 3. Ground-Reflected Component ($E_{ground,reflected}$)
+
+$$E_{ground,reflected} = GHI \cdot \rho \cdot \left( \frac{1 - \cos\beta}{2} \right)$$
+
+Where $GHI$ is Global Horizontal Irradiance and $\rho$ is the ground albedo.  
