@@ -7,6 +7,11 @@ It can improve code generation, but it would make a distributed wheel fail on ol
 
 Understand and refactor `ObserverLatitudeGeometry` and `grid.rs` 
 
+# Clearsky
+
+Use ineichen model, TL from `LinkeTurbidities.h5`, AM calculates as `am = 1 / (cos(zenith_rad) + 0.50572 * ((06.07995 - zenith_angle_deg)**-1.6364))`
+use [book](https://www.osti.gov/servlets/purl/1039404) equations 12, 13 with x being `(2pi(n-1))/365`
+
 # POA
 
 POA = E_b + E_g + E_d
