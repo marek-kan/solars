@@ -224,20 +224,3 @@ pub(crate) fn topocentric_azimuth_angle_e_from_n(
 ) -> f64 {
     limit_deg_to_360(topocentric_azimuth_angle_w_from_south + 180.0)
 }
-
-/// all inputs should be degrees
-pub fn aoi(
-    zenith_angle: f64,
-    topocentric_azimuth_from_north: f64,
-    panel_tilt: f64,
-    panel_azimuth: f64,
-) -> f64 {
-    let zenith_rad = zenith_angle.to_radians();
-    let tilt_rad = panel_tilt.to_radians();
-    let azimuth_diff_rad = (topocentric_azimuth_from_north - panel_azimuth).to_radians();
-
-    let cos_aoi = zenith_rad.cos() * tilt_rad.cos()
-        + zenith_rad.sin() * tilt_rad.sin() * azimuth_diff_rad.cos();
-
-    cos_aoi.clamp(-1.0, 1.0).acos().to_degrees()
-}

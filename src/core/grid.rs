@@ -4,13 +4,14 @@ use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 use std::fmt::{Display, Formatter};
 
+use crate::core::irradiance::OpticalLossParameters;
 use crate::core::solar_position::{
-    aberration_correction, apparent_sun_longitude, geocentric_sun_declination,
-    geocentric_sun_right_ascension, obs_local_hour_angle, sidereal_time_greenwich,
-    topocentric_azimuth_angle_e_from_n, topocentric_zenith_angle, ObserverLatitudeGeometry,
-    topocentric_azimuth_angle_w_from_s_with_geometry,
-    topocentric_elevation_angle_with_geometry,
+    ObserverLatitudeGeometry, aberration_correction, apparent_sun_longitude,
+    geocentric_sun_declination, geocentric_sun_right_ascension, obs_local_hour_angle,
+    sidereal_time_greenwich, topocentric_azimuth_angle_e_from_n,
+    topocentric_azimuth_angle_w_from_s_with_geometry, topocentric_elevation_angle_with_geometry,
     topocentric_sun_right_ascension_declination_and_local_hour_angle_with_geometry,
+    topocentric_zenith_angle,
 };
 use crate::core::time::{calc_julian_day, delta_t_seconds, julian_century, julian_millennium};
 use crate::periodic_tables::earth::{
@@ -62,6 +63,7 @@ pub struct AoiInput<'a> {
     pub azimuth: ArrayView3<'a, f64>,
     pub panel_tilt: SpatialInput<'a>,
     pub panel_azimuth: SpatialInput<'a>,
+    pub optical_loss_params: Option<OpticalLossParameters>,
 }
 
 /// Angle-of-incidence values, in degrees, shaped `(time, lat, lon)`.
@@ -194,7 +196,8 @@ pub fn calculate_solar_position(
                     let cell_index = output_index % cells_per_time;
                     let latitude_index = cell_index / shape.2;
                     let longitude_index = cell_index % shape.2;
-                    let elevation = spatial_value(&input.elevation, latitude_index, longitude_index);
+                    let elevation =
+                        spatial_value(&input.elevation, latitude_index, longitude_index);
                     let pressure = atmospheric_value(
                         &input.pressure,
                         time_index,
@@ -260,11 +263,12 @@ pub fn calculate_aoi(input: AoiInput<'_>, num_threads: usize) -> Result<AoiResul
                     let cell_index = output_index % cells_per_time;
                     let latitude_index = cell_index / shape.2;
                     let longitude_index = cell_index % shape.2;
-                    *aoi = crate::core::solar_position::aoi(
+                    *aoi = crate::core::irradiance::aoi(
                         input.zenith[[time_index, latitude_index, longitude_index]],
                         input.azimuth[[time_index, latitude_index, longitude_index]],
                         spatial_value(&input.panel_tilt, latitude_index, longitude_index),
                         spatial_value(&input.panel_azimuth, latitude_index, longitude_index),
+                        input.optical_loss_params,
                     );
                 }
             });
@@ -480,6 +484,7 @@ mod tests {
                 azimuth: solar_position.azimuth.view(),
                 panel_tilt: SpatialInput::Scalar(30.0),
                 panel_azimuth: SpatialInput::Scalar(180.0),
+                optical_loss_params: None,
             },
             1,
         )
@@ -557,6 +562,7 @@ mod tests {
                 azimuth: azimuth.view(),
                 panel_tilt: SpatialInput::Grid(panel_tilt.view()),
                 panel_azimuth: SpatialInput::Grid(panel_azimuth.view()),
+                optical_loss_params: None,
             },
             2,
         )

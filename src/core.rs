@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 
 pub mod grid;
+pub mod irradiance;
 pub(crate) mod solar_position;
 pub(crate) mod time;
 pub(crate) mod utils;
@@ -12,6 +13,7 @@ pub use grid::{
     SpatialInput, calculate_aoi, calculate_solar_position,
 };
 
+use crate::core::irradiance::aoi;
 use crate::core::solar_position::{
     aberration_correction, apparent_sun_longitude, geocentric_sun_declination,
     geocentric_sun_right_ascension, obs_local_hour_angle, sidereal_time_greenwich,
@@ -154,7 +156,7 @@ pub fn calculate_scalar_solar_position(
     if let (Some(tilt), Some(panel_direction)) = (panel_tilt, panel_azimuth) {
         result.insert(
             "aoi".to_owned(),
-            solar_position::aoi(zenith, azimuth, tilt, panel_direction),
+            aoi(zenith, azimuth, tilt, panel_direction, None),
         );
     }
 

@@ -10,6 +10,7 @@ use numpy::{
 };
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyModule};
 
+use crate::core::irradiance::OpticalLossParameters;
 use crate::core::{
     AoiInput, AtmosphericInput, SolarError, SolarPositionInput, SpatialInput, calculate_aoi,
     calculate_solar_position,
@@ -96,8 +97,22 @@ fn calculate_solar_position_numpy<'py>(
 /// Compute angle of incidence from precomputed solar-position arrays.
 ///
 /// Zenith and azimuth use `(time, lat, lon)`. Panel tilt and panel azimuth are
-/// scalar or `(lat, lon)` degree arrays and are constant over time.
-#[pyfunction(name = "calculate_aoi")]
+/// scalar or `(lat, lon)` degree arrays and are constant over time. Set
+/// `apply_optical_loss` to return physical IAM instead of geometric AOI.
+#[pyfunction(
+    name = "calculate_aoi",
+    signature = (
+        zenith,
+        azimuth,
+        panel_tilt,
+        panel_azimuth,
+        num_threads,
+        apply_optical_loss = false,
+        refractive_index = 1.526,
+        extinction_coefficient = 4.0,
+        thickness = 0.002,
+    )
+)]
 fn calculate_aoi_numpy<'py>(
     py: Python<'py>,
     zenith: PyReadonlyArray3<'py, f64>,
@@ -105,6 +120,10 @@ fn calculate_aoi_numpy<'py>(
     panel_tilt: &Bound<'py, PyAny>,
     panel_azimuth: &Bound<'py, PyAny>,
     num_threads: usize,
+    apply_optical_loss: bool,
+    refractive_index: f64,
+    extinction_coefficient: f64,
+    thickness: f64,
 ) -> PyResult<PyAoiResult> {
     let panel_tilt_scalar = panel_tilt.extract::<f64>().ok();
     let panel_tilt_array = if panel_tilt_scalar.is_none() {
@@ -129,6 +148,11 @@ fn calculate_aoi_numpy<'py>(
                 panel_azimuth_scalar,
                 &panel_azimuth_array,
             )?,
+            optical_loss_params: apply_optical_loss.then_some(OpticalLossParameters {
+                refractive_index,
+                extinction_coefficient,
+                thickness,
+            }),
         },
         num_threads,
     )
