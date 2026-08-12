@@ -116,7 +116,7 @@ def calculate_poa(
     dni: Float64Array,
     ghi: Float64Array,
     dhi: Float64Array,
-    albedo: float = 0.25,
+    albedo: Float64Array,
     num_threads: int = 1,
 ) -> PoaResult: 
     """
@@ -124,7 +124,7 @@ def calculate_poa(
     
     Zenith, AOI, DNI, GHI, and DHI use `(time, lat, lon)`. 
     Panel tilt is scalar or `(lat, lon)`.
-    Albedo is scalar. 
+    Albedo is `(time)` or `(time, lat, lon)`. For default behavior you can use 0.25
     `time` derives extraterrestrial DNI.
     """
     ...

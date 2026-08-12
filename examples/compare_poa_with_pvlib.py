@@ -40,7 +40,7 @@ def calculate_with_solars(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarra
         clearsky.dni,
         clearsky.ghi,
         clearsky.dhi,
-        ALBEDO,
+        np.full(shape=(len(time),), fill_value=ALBEDO),
         THREADS,
     )
     return {

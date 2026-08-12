@@ -291,7 +291,7 @@ fn calculate_clearsky_numpy<'py>(
 /// scalar or `(lat, lon)` and albedo is scalar. `time` derives extraterrestrial DNI.
 #[pyfunction(
     name = "calculate_poa",
-    signature = (time, zenith, aoi, panel_tilt, dni, ghi, dhi, albedo = 0.25, num_threads = 1)
+    signature = (time, zenith, aoi, panel_tilt, dni, ghi, dhi, albedo, num_threads = 1)
 )]
 fn calculate_poa_numpy<'py>(
     py: Python<'py>,
@@ -302,7 +302,7 @@ fn calculate_poa_numpy<'py>(
     dni: PyReadonlyArray3<'py, f64>,
     ghi: PyReadonlyArray3<'py, f64>,
     dhi: PyReadonlyArray3<'py, f64>,
-    albedo: f64,
+    albedo: PyReadonlyArrayDyn<'py, f64>,
     num_threads: usize,
 ) -> PyResult<PyPoaResult> {
     let panel_tilt_scalar = panel_tilt.extract::<f64>().ok();
@@ -311,6 +311,9 @@ fn calculate_poa_numpy<'py>(
     } else {
         None
     };
+
+    let albedo_input = atmospheric_input("albedo", &albedo)?; 
+    
     let time_values = time.as_array().mapv(i64::from);
     let dni_extra = time_values
         .iter()
@@ -323,7 +326,9 @@ fn calculate_poa_numpy<'py>(
             Ok(etraterrestrial_radiation(time.ordinal() as i64))
         })
         .collect::<PyResult<Vec<_>>>()?;
+    
     let dni_extra = Array1::from(dni_extra);
+
     let result = calculate_poa(
         PoaInput {
             zenith: zenith.as_array(),
@@ -333,7 +338,7 @@ fn calculate_poa_numpy<'py>(
             ghi: ghi.as_array(),
             dhi: dhi.as_array(),
             dni_extra: AtmosphericInput::Time(dni_extra.view()),
-            albedo: SpatialInput::Scalar(albedo),
+            albedo: albedo_input,
         },
         num_threads,
     )

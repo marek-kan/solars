@@ -90,7 +90,7 @@ pub struct PoaInput<'a> {
     pub ghi: ArrayView3<'a, f64>,
     pub dhi: ArrayView3<'a, f64>,
     pub dni_extra: AtmosphericInput<'a>,
-    pub albedo: SpatialInput<'a>,
+    pub albedo: AtmosphericInput<'a>,
 }
 
 /// Hay-Davies plane-of-array irradiance components, in W/m2.
@@ -195,7 +195,7 @@ impl<'a> PoaInput<'a> {
         }
 
         validate_spatial_input("panel_tilt", &self.panel_tilt, (shape.1, shape.2))?;
-        validate_spatial_input("albedo", &self.albedo, (shape.1, shape.2))?;
+        validate_atmospheric_input("albedo", &self.albedo, shape)?;
         validate_atmospheric_input("dni_extra", &self.dni_extra, shape)?;
 
         Ok(shape)
@@ -524,7 +524,7 @@ pub fn calculate_poa(input: PoaInput<'_>, num_threads: usize) -> Result<PoaResul
                             latitude_index,
                             longitude_index,
                         ),
-                        &input.albedo,
+                        atmospheric_value(&input.albedo, time_index, latitude_index, longitude_index),
                         latitude_index,
                         longitude_index,
                     );
@@ -559,12 +559,12 @@ fn poa_from_aoi(
     ghi: f64,
     dhi: f64,
     dni_extra: f64,
-    albedo: &SpatialInput<'_>,
+    albedo: f64,
     latitude_index: usize,
     longitude_index: usize,
 ) -> PoaIrradiance {
     let panel_tilt = spatial_value(panel_tilt, latitude_index, longitude_index);
-    let albedo = spatial_value(albedo, latitude_index, longitude_index);
+    // let albedo = spatial_value(albedo, latitude_index, longitude_index);
     let aoi_projection = aoi.to_radians().cos().max(0.0);
     let zenith_projection = zenith.to_radians().cos().max(0.01745);
     let projection_ratio = aoi_projection / zenith_projection;
@@ -897,6 +897,7 @@ mod tests {
         let ghi = Array3::from_elem((1, 1, 1), 600.0);
         let dhi = Array3::from_elem((1, 1, 1), 120.0);
         let dni_extra = arr1(&[1367.0]);
+        let albedo = arr1(&[0.2]);
 
         let result = calculate_poa(
             PoaInput {
@@ -907,7 +908,7 @@ mod tests {
                 ghi: ghi.view(),
                 dhi: dhi.view(),
                 dni_extra: AtmosphericInput::Time(dni_extra.view()),
-                albedo: SpatialInput::Scalar(0.2),
+                albedo: AtmosphericInput::Time(albedo.view()),
             },
             1,
         )
