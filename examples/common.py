@@ -21,16 +21,22 @@ def make_inputs() -> tuple[
     np.ndarray,
     np.ndarray,
 ]:
-    """Return a 100-time, 10x10 central-Europe grid."""
+    """Return a (TIME_COUNT, GRID_SIZE, GRID_SIZE) central-Europe grid."""
     latitude = np.linspace(45.0, 55.0, GRID_SIZE, dtype=np.float64)
     longitude = np.linspace(2.0, 16.0, GRID_SIZE, dtype=np.float64)
+
     time = np.datetime64("2024-06-21T04:00:00", "ns") + np.arange(TIME_COUNT) * np.timedelta64(10, "m")
+
     elevation = 50.0 + np.add.outer(
         np.linspace(0.0, 900.0, GRID_SIZE), np.linspace(0.0, 200.0, GRID_SIZE)
     )
+
     time_variation = np.linspace(0.0, 1.0, TIME_COUNT, dtype=np.float64)[:, None, None]
+
     pressure = 1013.25 - 18.0 * time_variation - elevation[None, :, :] / 100.0
+
     temperature = 16.0 + 8.0 * time_variation - elevation[None, :, :] / 200.0
+
     return latitude, longitude, time, elevation, pressure, temperature
 
 
@@ -52,9 +58,11 @@ def report_error_and_speed(
 ) -> None:
     """Print component-wise absolute errors and average execution durations."""
     print(f"{name}: shape={next(iter(solars_values.values())).shape} (time, lat, lon)")
+
     for component, solars_value in solars_values.items():
         difference = np.abs(solars_value - pvlib_values[component])
         print(f"{component}: mean_error={difference.mean():.6f}, max_error={difference.max():.6f}")
+
     print(f"solars: {solars_duration * 1_000:.3f} ms per run")
     print(f"pvlib:  {pvlib_duration * 1_000:.3f} ms per run")
     print(f"speedup: {pvlib_duration / solars_duration:.2f}x")

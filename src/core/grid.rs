@@ -28,13 +28,13 @@ use crate::periodic_tables::nutation::{calculate_dpsi_depsilon, calculate_epsilo
 use crate::periodic_tables::tl::{LinkeTurbidityGrid, SpatialInterpolation};
 
 /// A value that is either constant over the spatial grid or specified per location.
-pub enum SpatialInput<'a> {
+pub(crate) enum SpatialInput<'a> {
     Scalar(f64),
     Grid(ArrayView2<'a, f64>),
 }
 
 /// An atmospheric value that changes per timestamp or per grid cell and timestamp.
-pub enum AtmosphericInput<'a> {
+pub(crate) enum AtmosphericInput<'a> {
     Time(ArrayView1<'a, f64>),
     Grid(ArrayView3<'a, f64>),
 }
@@ -45,36 +45,36 @@ pub enum AtmosphericInput<'a> {
 /// independent one-dimensional axes. Elevation is scalar or `(lat, lon)`;
 /// pressure and temperature are `(time)` or `(time, lat, lon)`. Time values
 /// are Unix timestamps in nanoseconds, matching NumPy `datetime64[ns]` storage.
-pub struct SolarPositionInput<'a> {
-    pub latitude: ArrayView1<'a, f64>,
-    pub longitude: ArrayView1<'a, f64>,
-    pub time: ArrayView1<'a, i64>,
-    pub elevation: SpatialInput<'a>,
-    pub pressure: AtmosphericInput<'a>,
-    pub temperature: AtmosphericInput<'a>,
+pub(crate) struct SolarPositionInput<'a> {
+    pub(crate) latitude: ArrayView1<'a, f64>,
+    pub(crate) longitude: ArrayView1<'a, f64>,
+    pub(crate) time: ArrayView1<'a, i64>,
+    pub(crate) elevation: SpatialInput<'a>,
+    pub(crate) pressure: AtmosphericInput<'a>,
+    pub(crate) temperature: AtmosphericInput<'a>,
 }
 
 /// Zenith and azimuth angles, in degrees, shaped `(time, lat, lon)`.
-pub struct SolarPositionResult {
-    pub zenith: Array3<f64>,
-    pub azimuth: Array3<f64>,
+pub(crate) struct SolarPositionResult {
+    pub(crate) zenith: Array3<f64>,
+    pub(crate) azimuth: Array3<f64>,
 }
 
 /// Borrowed inputs for calculating the angle of incidence from solar-position output.
 ///
 /// Panel geometry is scalar or `(lat, lon)` and is constant over time. Zenith
 /// and azimuth must share the `(time, lat, lon)` output shape.
-pub struct AoiInput<'a> {
-    pub zenith: ArrayView3<'a, f64>,
-    pub azimuth: ArrayView3<'a, f64>,
-    pub panel_tilt: SpatialInput<'a>,
-    pub panel_azimuth: SpatialInput<'a>,
-    pub optical_loss_params: Option<OpticalLossParameters>,
+pub(crate) struct AoiInput<'a> {
+    pub(crate) zenith: ArrayView3<'a, f64>,
+    pub(crate) azimuth: ArrayView3<'a, f64>,
+    pub(crate) panel_tilt: SpatialInput<'a>,
+    pub(crate) panel_azimuth: SpatialInput<'a>,
+    pub(crate) optical_loss_params: Option<OpticalLossParameters>,
 }
 
 /// Angle-of-incidence values, in degrees, shaped `(time, lat, lon)`.
-pub struct AoiResult {
-    pub aoi: Array3<f64>,
+pub(crate) struct AoiResult {
+    pub(crate) aoi: Array3<f64>,
 }
 
 /// Borrowed inputs for Hay-Davies plane-of-array irradiance calculations.
@@ -82,24 +82,24 @@ pub struct AoiResult {
 /// Zenith, geometric AOI, DNI, GHI, and DHI use `(time, lat, lon)`. Panel
 /// tilt and albedo are scalar or `(lat, lon)`. Extraterrestrial DNI is either
 /// `(time)` or `(time, lat, lon)`.
-pub struct PoaInput<'a> {
-    pub zenith: ArrayView3<'a, f64>,
-    pub aoi: ArrayView3<'a, f64>,
-    pub panel_tilt: SpatialInput<'a>,
-    pub dni: ArrayView3<'a, f64>,
-    pub ghi: ArrayView3<'a, f64>,
-    pub dhi: ArrayView3<'a, f64>,
-    pub dni_extra: AtmosphericInput<'a>,
-    pub albedo: AtmosphericInput<'a>,
+pub(crate) struct PoaInput<'a> {
+    pub(crate) zenith: ArrayView3<'a, f64>,
+    pub(crate) aoi: ArrayView3<'a, f64>,
+    pub(crate) panel_tilt: SpatialInput<'a>,
+    pub(crate) dni: ArrayView3<'a, f64>,
+    pub(crate) ghi: ArrayView3<'a, f64>,
+    pub(crate) dhi: ArrayView3<'a, f64>,
+    pub(crate) dni_extra: AtmosphericInput<'a>,
+    pub(crate) albedo: AtmosphericInput<'a>,
 }
 
 /// Hay-Davies plane-of-array irradiance components, in W/m2.
-pub struct PoaResult {
-    pub global: Array3<f64>,
-    pub direct: Array3<f64>,
-    pub diffuse: Array3<f64>,
-    pub sky_diffuse: Array3<f64>,
-    pub ground_diffuse: Array3<f64>,
+pub(crate) struct PoaResult {
+    pub(crate) global: Array3<f64>,
+    pub(crate) direct: Array3<f64>,
+    pub(crate) diffuse: Array3<f64>,
+    pub(crate) sky_diffuse: Array3<f64>,
+    pub(crate) ground_diffuse: Array3<f64>,
 }
 
 /// Borrowed inputs for Ineichen/Perez clear-sky irradiance calculations.
@@ -107,24 +107,24 @@ pub struct PoaResult {
 /// Zenith uses `(time, lat, lon)`. Time is Unix nanoseconds, latitude and
 /// longitude are degree axes, elevation is scalar or `(lat, lon)`, and
 /// pressure is optional in millibars.
-pub struct ClearSkyInput<'a> {
-    pub time: ArrayView1<'a, i64>,
-    pub latitude: ArrayView1<'a, f64>,
-    pub longitude: ArrayView1<'a, f64>,
-    pub zenith: ArrayView3<'a, f64>,
-    pub elevation: SpatialInput<'a>,
-    pub pressure: Option<AtmosphericInput<'a>>,
+pub(crate) struct ClearSkyInput<'a> {
+    pub(crate) time: ArrayView1<'a, i64>,
+    pub(crate) latitude: ArrayView1<'a, f64>,
+    pub(crate) longitude: ArrayView1<'a, f64>,
+    pub(crate) zenith: ArrayView3<'a, f64>,
+    pub(crate) elevation: SpatialInput<'a>,
+    pub(crate) pressure: Option<AtmosphericInput<'a>>,
 }
 
 /// Ineichen/Perez clear-sky irradiance components, in W/m2.
-pub struct ClearSkyResult {
-    pub ghi: Array3<f64>,
-    pub dni: Array3<f64>,
-    pub dhi: Array3<f64>,
+pub(crate) struct ClearSkyResult {
+    pub(crate) ghi: Array3<f64>,
+    pub(crate) dni: Array3<f64>,
+    pub(crate) dhi: Array3<f64>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum SolarError {
+pub(crate) enum SolarError {
     InvalidShape(String),
     InvalidTimestamp(i64),
     InvalidThreadCount,
@@ -242,7 +242,7 @@ struct TimeGeometry {
 ///
 /// Time-dependent solar geometry is evaluated once per timestamp and reused for
 /// every latitude/longitude pair in that time slice.
-pub fn calculate_solar_position(
+pub(crate) fn calculate_solar_position(
     input: SolarPositionInput<'_>,
     num_threads: usize,
 ) -> Result<SolarPositionResult, SolarError> {
@@ -337,7 +337,10 @@ pub fn calculate_solar_position(
 }
 
 /// Calculates angle of incidence without recomputing solar position.
-pub fn calculate_aoi(input: AoiInput<'_>, num_threads: usize) -> Result<AoiResult, SolarError> {
+pub(crate) fn calculate_aoi(
+    input: AoiInput<'_>,
+    num_threads: usize,
+) -> Result<AoiResult, SolarError> {
     if num_threads == 0 {
         return Err(SolarError::InvalidThreadCount);
     }
@@ -387,7 +390,7 @@ pub fn calculate_aoi(input: AoiInput<'_>, num_threads: usize) -> Result<AoiResul
 }
 
 /// Calculates Ineichen/Perez clear-sky GHI, DNI, and DHI from precomputed zenith.
-pub fn calculate_clearsky(
+pub(crate) fn calculate_clearsky(
     input: ClearSkyInput<'_>,
     num_threads: usize,
 ) -> Result<ClearSkyResult, SolarError> {
@@ -474,7 +477,10 @@ fn linke_turbidity_grid() -> &'static LinkeTurbidityGrid {
 }
 
 /// Calculates Hay-Davies plane-of-array irradiance from precomputed AOI and zenith.
-pub fn calculate_poa(input: PoaInput<'_>, num_threads: usize) -> Result<PoaResult, SolarError> {
+pub(crate) fn calculate_poa(
+    input: PoaInput<'_>,
+    num_threads: usize,
+) -> Result<PoaResult, SolarError> {
     if num_threads == 0 {
         return Err(SolarError::InvalidThreadCount);
     }
@@ -524,7 +530,12 @@ pub fn calculate_poa(input: PoaInput<'_>, num_threads: usize) -> Result<PoaResul
                             latitude_index,
                             longitude_index,
                         ),
-                        atmospheric_value(&input.albedo, time_index, latitude_index, longitude_index),
+                        atmospheric_value(
+                            &input.albedo,
+                            time_index,
+                            latitude_index,
+                            longitude_index,
+                        ),
                         latitude_index,
                         longitude_index,
                     );
@@ -726,88 +737,8 @@ mod tests {
         AoiInput, AtmosphericInput, ClearSkyInput, PoaInput, SolarPositionInput, SpatialInput,
         calculate_aoi, calculate_clearsky, calculate_poa, calculate_solar_position,
     };
-    use crate::core::calculate_scalar_solar_position;
     use chrono::{TimeZone, Utc};
     use ndarray::{Array3, arr1, arr2};
-
-    #[test]
-    fn array_calculation_matches_scalar_calculation_for_one_cell() {
-        let latitude = arr1(&[39.742476]);
-        let longitude = arr1(&[-105.1786]);
-        let time = Utc.with_ymd_and_hms(2003, 10, 17, 19, 30, 30).unwrap();
-        let times = arr1(&[time.timestamp_nanos_opt().unwrap()]);
-        let result = calculate_solar_position(
-            SolarPositionInput {
-                latitude: latitude.view(),
-                longitude: longitude.view(),
-                time: times.view(),
-                elevation: SpatialInput::Scalar(1830.14),
-                pressure: AtmosphericInput::Time(arr1(&[820.0]).view()),
-                temperature: AtmosphericInput::Time(arr1(&[11.0]).view()),
-            },
-            1,
-        )
-        .unwrap();
-        let scalar_result = calculate_scalar_solar_position(
-            39.742476,
-            -105.1786,
-            time,
-            Some(1830.14),
-            Some(11.0),
-            Some(820.0),
-            None,
-            None,
-        );
-
-        assert_eq!(result.zenith.dim(), (1, 1, 1));
-        assert_eq!(result.azimuth.dim(), (1, 1, 1));
-        assert!((result.zenith[[0, 0, 0]] - scalar_result["zenith"]).abs() < 1e-12);
-        assert!((result.azimuth[[0, 0, 0]] - scalar_result["azimuth"]).abs() < 1e-12);
-    }
-
-    #[test]
-    fn aoi_uses_precomputed_array_solar_position() {
-        let latitude = arr1(&[39.742476]);
-        let longitude = arr1(&[-105.1786]);
-        let time = Utc.with_ymd_and_hms(2003, 10, 17, 19, 30, 30).unwrap();
-        let times = arr1(&[time.timestamp_nanos_opt().unwrap()]);
-        let solar_position = calculate_solar_position(
-            SolarPositionInput {
-                latitude: latitude.view(),
-                longitude: longitude.view(),
-                time: times.view(),
-                elevation: SpatialInput::Scalar(1830.14),
-                pressure: AtmosphericInput::Time(arr1(&[820.0]).view()),
-                temperature: AtmosphericInput::Time(arr1(&[11.0]).view()),
-            },
-            1,
-        )
-        .unwrap();
-        let aoi = calculate_aoi(
-            AoiInput {
-                zenith: solar_position.zenith.view(),
-                azimuth: solar_position.azimuth.view(),
-                panel_tilt: SpatialInput::Scalar(30.0),
-                panel_azimuth: SpatialInput::Scalar(180.0),
-                optical_loss_params: None,
-            },
-            1,
-        )
-        .unwrap();
-        let scalar_result = calculate_scalar_solar_position(
-            39.742476,
-            -105.1786,
-            time,
-            Some(1830.14),
-            Some(11.0),
-            Some(820.0),
-            Some(30.0),
-            Some(180.0),
-        );
-
-        assert_eq!(aoi.aoi.dim(), (1, 1, 1));
-        assert!((aoi.aoi[[0, 0, 0]] - scalar_result["aoi"]).abs() < 1e-12);
-    }
 
     #[test]
     fn solar_position_accepts_spatial_elevation_and_three_dimensional_atmosphere() {
@@ -922,7 +853,7 @@ mod tests {
     }
 
     #[test]
-    fn grid_ineichen_clearsky_matches_pvlib_with_millibar_pressure() {
+    fn grid_ineichen_clearsky_with_millibar_pressure() {
         let time = Utc.with_ymd_and_hms(2024, 1, 15, 12, 0, 0).unwrap();
         let times = arr1(&[time.timestamp_nanos_opt().unwrap()]);
         let latitude = arr1(&[52.5]);

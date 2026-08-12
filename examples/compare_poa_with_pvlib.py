@@ -19,6 +19,7 @@ ALBEDO = 0.25
 
 def calculate_with_solars(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray]:
     latitude, longitude, time, elevation, pressure, temperature = inputs
+
     solar_position = solars.calculate_solar_position(
         latitude, longitude, time, elevation, pressure, temperature, THREADS
     )
@@ -43,8 +44,9 @@ def calculate_with_solars(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarra
         np.full(shape=(len(time),), fill_value=ALBEDO),
         THREADS,
     )
+
     return {
-        "global": getattr(result, "global"),
+        "global": getattr(result, "global"),  # avoids confusion with pythons `global` keyword
         "direct": result.direct,
         "diffuse": result.diffuse,
         "sky_diffuse": result.sky_diffuse,
@@ -54,13 +56,17 @@ def calculate_with_solars(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarra
 
 def calculate_with_pvlib(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray]:
     latitude, longitude, time, elevation, pressure, temperature = inputs
+
     times = pd.DatetimeIndex(time).tz_localize("UTC")
     shape = (time.size, latitude.size, longitude.size)
+
     values = {
         name: np.empty(shape, dtype=np.float64)
         for name in ("global", "direct", "diffuse", "sky_diffuse", "ground_diffuse")
     }
+
     dni_extra = np.array([extra_radiation(value.dayofyear) for value in times])
+
     for latitude_index, latitude_value in enumerate(latitude):
         for longitude_index, longitude_value in enumerate(longitude):
             solar_position = pvlib.solarposition.get_solarposition(
@@ -102,6 +108,7 @@ def calculate_with_pvlib(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray
             values["diffuse"][:, latitude_index, longitude_index] = poa["poa_diffuse"]
             values["sky_diffuse"][:, latitude_index, longitude_index] = poa["poa_sky_diffuse"]
             values["ground_diffuse"][:, latitude_index, longitude_index] = poa["poa_ground_diffuse"]
+
     return values
 
 

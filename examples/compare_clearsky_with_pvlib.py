@@ -26,25 +26,34 @@ def extra_radiation(day_of_year: int) -> float:
 
 def calculate_with_solars(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray]:
     latitude, longitude, time, elevation, pressure, temperature = inputs
+
     solar_position = solars.calculate_solar_position(
         latitude, longitude, time, elevation, pressure, temperature, THREADS
     )
+
     result = solars.calculate_clearsky(
         latitude, longitude, time, solar_position.zenith, elevation, pressure, THREADS
     )
+
     return {"ghi": result.ghi, "dni": result.dni, "dhi": result.dhi}
 
 
 def calculate_with_pvlib(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray]:
     latitude, longitude, time, elevation, pressure, temperature = inputs
+
     times = pd.DatetimeIndex(time).tz_localize("UTC")
+
     shape = (time.size, latitude.size, longitude.size)
+
     ghi = np.empty(shape, dtype=np.float64)
     dni = np.empty(shape, dtype=np.float64)
     dhi = np.empty(shape, dtype=np.float64)
     dni_extra = np.array([extra_radiation(value.dayofyear) for value in times])
+
     for latitude_index, latitude_value in enumerate(latitude):
         for longitude_index, longitude_value in enumerate(longitude):
+            # To reproduce exact models and methods used in `solars`
+
             solar_position = pvlib.solarposition.get_solarposition(
                 times,
                 latitude_value,
@@ -70,6 +79,7 @@ def calculate_with_pvlib(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray
             ghi[:, latitude_index, longitude_index] = clearsky["ghi"]
             dni[:, latitude_index, longitude_index] = clearsky["dni"]
             dhi[:, latitude_index, longitude_index] = clearsky["dhi"]
+
     return {"ghi": ghi, "dni": dni, "dhi": dhi}
 
 

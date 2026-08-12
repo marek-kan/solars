@@ -14,18 +14,22 @@ from common import THREADS, average_duration, make_inputs, report_error_and_spee
 
 def calculate_with_solars(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray]:
     latitude, longitude, time, elevation, pressure, temperature = inputs
+
     result = solars.calculate_solar_position(
         latitude, longitude, time, elevation, pressure, temperature, THREADS
     )
+
     return {"zenith": result.zenith, "azimuth": result.azimuth}
 
 
 def calculate_with_pvlib(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray]:
     latitude, longitude, time, elevation, pressure, temperature = inputs
+
     times = pd.DatetimeIndex(time).tz_localize("UTC")
     shape = (time.size, latitude.size, longitude.size)
     zenith = np.empty(shape, dtype=np.float64)
     azimuth = np.empty(shape, dtype=np.float64)
+
     for latitude_index, latitude_value in enumerate(latitude):
         for longitude_index, longitude_value in enumerate(longitude):
             result = pvlib.solarposition.get_solarposition(
@@ -39,6 +43,7 @@ def calculate_with_pvlib(inputs: tuple[np.ndarray, ...]) -> dict[str, np.ndarray
             )
             zenith[:, latitude_index, longitude_index] = result["apparent_zenith"]
             azimuth[:, latitude_index, longitude_index] = result["azimuth"]
+
     return {"zenith": zenith, "azimuth": azimuth}
 
 

@@ -14,7 +14,7 @@ const DATASET_NAME: &str = "LinkeTurbidity";
 
 /// Spatial lookup method for the Linke turbidity grid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpatialInterpolation {
+pub(crate) enum SpatialInterpolation {
     /// Select the closest source grid cell.
     Nearest,
     /// Blend the four surrounding source grid cells.
@@ -26,7 +26,7 @@ pub enum SpatialInterpolation {
 /// The source grid is ordered as `[latitude, longitude, month]`, with latitude
 /// decreasing from north to south and longitude increasing west to east.
 #[derive(Debug, Clone)]
-pub struct LinkeTurbidityGrid {
+pub(crate) struct LinkeTurbidityGrid {
     /// Raw values are retained to keep the in-memory representation compact.
     /// A raw value of zero represents missing data; all other values are TL * 20.
     data: Vec<u8>,
@@ -34,7 +34,7 @@ pub struct LinkeTurbidityGrid {
 
 impl LinkeTurbidityGrid {
     /// Load and preload the `LinkeTurbidity` dataset from an HDF5 file.
-    pub fn load(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
+    pub(crate) fn load(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let file = File::open(path)?;
         let dataset = file.dataset(DATASET_NAME)?;
         let data: Vec<u8> = dataset.read()?;
@@ -42,7 +42,7 @@ impl LinkeTurbidityGrid {
     }
 
     /// Construct a grid from a flattened `[latitude, longitude, month]` array.
-    pub fn from_raw(data: Vec<u8>) -> Result<Self, Box<dyn Error + Send + Sync>> {
+    pub(crate) fn from_raw(data: Vec<u8>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let expected_len = LATITUDE_COUNT * LONGITUDE_COUNT * MONTH_COUNT;
         if data.len() != expected_len {
             return Err(format!(
@@ -58,10 +58,15 @@ impl LinkeTurbidityGrid {
     /// Return TL interpolated in latitude, longitude, and calendar time.
     ///
     /// Time interpolation is linear between monthly climatology values centered
-    /// on each month's midpoint, matching pvlib. December and January wrap at
+    /// on each month's midpoint, matching pvlib implementation. December and January wrap at
     /// the year boundary. Longitude wraps at the antimeridian and latitude is
     /// clamped to the grid domain.
-    pub fn interpolate(&self, time: DateTime<Utc>, latitude: f64, longitude: f64) -> Option<f32> {
+    pub(crate) fn interpolate(
+        &self,
+        time: DateTime<Utc>,
+        latitude: f64,
+        longitude: f64,
+    ) -> Option<f32> {
         self.interpolate_with_spatial_interpolation(
             time,
             latitude,
@@ -71,7 +76,7 @@ impl LinkeTurbidityGrid {
     }
 
     /// Return TL interpolated in calendar time with the selected spatial method.
-    pub fn interpolate_with_spatial_interpolation(
+    pub(crate) fn interpolate_with_spatial_interpolation(
         &self,
         time: DateTime<Utc>,
         latitude: f64,
@@ -117,7 +122,12 @@ impl LinkeTurbidityGrid {
     ///
     /// `month` is zero-based. This method is useful when the caller already
     /// has its own temporal interpolation or wants a monthly value directly.
-    pub fn interpolate_monthly(&self, month: usize, latitude: f64, longitude: f64) -> Option<f32> {
+    pub(crate) fn interpolate_monthly(
+        &self,
+        month: usize,
+        latitude: f64,
+        longitude: f64,
+    ) -> Option<f32> {
         self.interpolate_monthly_with_spatial_interpolation(
             month,
             latitude,
@@ -127,7 +137,7 @@ impl LinkeTurbidityGrid {
     }
 
     /// Return TL from one monthly layer with the selected spatial method.
-    pub fn interpolate_monthly_with_spatial_interpolation(
+    pub(crate) fn interpolate_monthly_with_spatial_interpolation(
         &self,
         month: usize,
         latitude: f64,
@@ -153,7 +163,7 @@ impl LinkeTurbidityGrid {
     }
 
     /// Return the raw encoded value at a grid cell.
-    pub fn raw_value(&self, latitude: usize, longitude: usize, month: usize) -> Option<u8> {
+    pub(crate) fn raw_value(&self, latitude: usize, longitude: usize, month: usize) -> Option<u8> {
         if latitude >= LATITUDE_COUNT || longitude >= LONGITUDE_COUNT || month >= MONTH_COUNT {
             return None;
         }

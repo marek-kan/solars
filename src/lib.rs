@@ -1,5 +1,5 @@
-pub mod core; // for main.rs
-mod periodic_tables;
+pub(crate) mod core;
+pub(crate) mod periodic_tables;
 
 use chrono::{DateTime, Datelike};
 use ndarray::{Array1, Ix1, Ix2, Ix3};
@@ -9,11 +9,11 @@ use numpy::{
 };
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyModule};
 
-use crate::core::irradiance::{OpticalLossParameters, etraterrestrial_radiation};
-use crate::core::{
+use crate::core::grid::{
     AoiInput, AtmosphericInput, ClearSkyInput, PoaInput, SolarError, SolarPositionInput,
     SpatialInput, calculate_aoi, calculate_clearsky, calculate_poa, calculate_solar_position,
 };
+use crate::core::irradiance::{OpticalLossParameters, etraterrestrial_radiation};
 
 #[pyclass(name = "SolarPositionResult")]
 struct PySolarPositionResult {
@@ -312,8 +312,8 @@ fn calculate_poa_numpy<'py>(
         None
     };
 
-    let albedo_input = atmospheric_input("albedo", &albedo)?; 
-    
+    let albedo_input = atmospheric_input("albedo", &albedo)?;
+
     let time_values = time.as_array().mapv(i64::from);
     let dni_extra = time_values
         .iter()
@@ -326,7 +326,7 @@ fn calculate_poa_numpy<'py>(
             Ok(etraterrestrial_radiation(time.ordinal() as i64))
         })
         .collect::<PyResult<Vec<_>>>()?;
-    
+
     let dni_extra = Array1::from(dni_extra);
 
     let result = calculate_poa(
@@ -410,6 +410,19 @@ fn solars(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(calculate_aoi_numpy, module)?)?;
     module.add_function(wrap_pyfunction!(calculate_clearsky_numpy, module)?)?;
     module.add_function(wrap_pyfunction!(calculate_poa_numpy, module)?)?;
+    module.add(
+        "__all__",
+        (
+            "SolarPositionResult",
+            "AoiResult",
+            "ClearSkyResult",
+            "PoaResult",
+            "calculate_solar_position",
+            "calculate_aoi",
+            "calculate_clearsky",
+            "calculate_poa",
+        ),
+    )?;
     Ok(())
 }
 

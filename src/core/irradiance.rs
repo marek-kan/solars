@@ -3,10 +3,10 @@
 /// `refractive_index` is unitless, `extinction_coefficient` is in 1/m, and
 /// `thickness` is in meters.
 #[derive(Clone, Copy, Debug)]
-pub struct OpticalLossParameters {
-    pub refractive_index: f64,
-    pub extinction_coefficient: f64,
-    pub thickness: f64,
+pub(crate) struct OpticalLossParameters {
+    pub(crate) refractive_index: f64,
+    pub(crate) extinction_coefficient: f64,
+    pub(crate) thickness: f64,
 }
 
 impl Default for OpticalLossParameters {
@@ -24,7 +24,7 @@ impl Default for OpticalLossParameters {
 /// All geometric inputs are degrees. Without `optical_loss`, this returns the
 /// geometric angle of incidence in degrees. With `optical_loss`, it returns
 /// the dimensionless physical incidence angle modifier for uncoated glass.
-pub fn aoi(
+pub(crate) fn aoi(
     zenith_angle: f64,
     topocentric_azimuth_from_north: f64,
     panel_tilt: f64,
@@ -43,7 +43,7 @@ pub fn aoi(
     })
 }
 
-pub fn etraterrestrial_radiation(day_of_year: i64) -> f64 {
+pub(crate) fn etraterrestrial_radiation(day_of_year: i64) -> f64 {
     let x = (2.0 * std::f64::consts::PI * (day_of_year - 1) as f64) / 365.0;
 
     1366.1
@@ -53,16 +53,16 @@ pub fn etraterrestrial_radiation(day_of_year: i64) -> f64 {
 
 /// Clear-sky irradiance components calculated with the Ineichen/Perez model.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ClearSkyIrradiance {
-    pub ghi: f64,
-    pub dni: f64,
-    pub dhi: f64,
+pub(crate) struct ClearSkyIrradiance {
+    pub(crate) ghi: f64,
+    pub(crate) dni: f64,
+    pub(crate) dhi: f64,
 }
 
 /// Calculate relative airmass using the Kasten-Young 1989 model.
 ///
 /// `zenith` is in degrees. Values at or below the horizon return infinity.
-pub fn relative_airmass_kasten(zenith: f64) -> f64 {
+pub(crate) fn relative_airmass_kasten(zenith: f64) -> f64 {
     if zenith >= 90.0 {
         return f64::INFINITY;
     }
@@ -76,7 +76,7 @@ pub fn relative_airmass_kasten(zenith: f64) -> f64 {
 /// Angles are degrees, elevation is meters, and irradiance values are W/m2.
 /// `pressure`, when supplied, is in millibars and corrects relative airmass
 /// to absolute airmass. The Perez enhancement factor is not applied.
-pub fn ineichen_clearsky(
+pub(crate) fn ineichen_clearsky(
     zenith: f64,
     linke_turbidity: f64,
     elevation: f64,
@@ -118,12 +118,12 @@ pub fn ineichen_clearsky(
 
 /// Plane-of-array irradiance components calculated with the Hay-Davies model.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PoaIrradiance {
-    pub global: f64,
-    pub direct: f64,
-    pub diffuse: f64,
-    pub sky_diffuse: f64,
-    pub ground_diffuse: f64,
+pub(crate) struct PoaIrradiance {
+    pub(crate) global: f64,
+    pub(crate) direct: f64,
+    pub(crate) diffuse: f64,
+    pub(crate) sky_diffuse: f64,
+    pub(crate) ground_diffuse: f64,
 }
 
 /// Calculate scalar plane-of-array irradiance using the Hay-Davies model.
@@ -131,7 +131,7 @@ pub struct PoaIrradiance {
 /// Angles are degrees and irradiance values are W/m2. `dni_extra` is the
 /// extraterrestrial direct normal irradiance and `albedo` is the ground
 /// reflectance factor.
-pub fn poa_haydavies(
+pub(crate) fn poa_haydavies(
     panel_tilt: f64,
     panel_azimuth: f64,
     solar_zenith: f64,
@@ -169,8 +169,8 @@ pub fn poa_haydavies(
     }
 }
 
-/// Calculate pvlib's uncoated-glass physical incidence angle modifier.
-pub fn physical_optical_loss(aoi: f64, parameters: OpticalLossParameters) -> f64 {
+/// Calculate uncoated-glass physical incidence angle modifier.
+pub(crate) fn physical_optical_loss(aoi: f64, parameters: OpticalLossParameters) -> f64 {
     let n = parameters.refractive_index;
     let cos_incidence = aoi.to_radians().cos().max(0.0);
     if cos_incidence == 0.0 {
@@ -204,13 +204,13 @@ mod tests {
     };
 
     #[test]
-    fn geometric_aoi_matches_pvlib() {
+    fn geometric_aoi() {
         let actual = aoi(50.0, 200.0, 30.0, 180.0, None);
         assert!((actual - 23.566_943_771_139).abs() < 1e-12);
     }
 
     #[test]
-    fn physical_optical_loss_against_pvlib_without_ar_coating() {
+    fn physical_optical_loss_ar_coating() {
         let parameters = OpticalLossParameters::default();
         let actual = aoi(50.0, 200.0, 30.0, 180.0, Some(parameters));
         assert!((actual - 0.999_133_283_938).abs() < 1e-12);
@@ -240,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn ineichen_clearsky_matches_pvlib_at_sea_level() {
+    fn ineichen_clearsky_at_sea_level() {
         let actual = ineichen_clearsky(40.0, 3.0, 0.0, None, 1367.0);
 
         assert!((relative_airmass_kasten(40.0) - 1.304_223_540_914).abs() < 1e-12);
@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn ineichen_clearsky_matches_pvlib_with_millibar_pressure() {
+    fn ineichen_clearsky_with_millibar_pressure() {
         let actual = ineichen_clearsky(65.0, 4.2, 1830.0, Some(820.0), 1414.0);
 
         assert!((relative_airmass_kasten(65.0) - 2.356_019_282_209).abs() < 1e-12);
