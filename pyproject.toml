@@ -4,14 +4,16 @@ build-backend = "maturin"
 
 [project]
 name = "solars"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
-dependencies = ["numpy>=1.26"]
+dependencies = [
+    "numpy>=1.26",
+]
 
 [project.optional-dependencies]
 comparison = ["pandas>=2.0", "pvlib>=0.11"]

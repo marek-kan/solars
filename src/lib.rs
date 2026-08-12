@@ -113,7 +113,8 @@ impl PyAoiResult {
 ///
 /// `latitude` and `longitude` are one-dimensional degree axes; `time` is a
 /// one-dimensional `numpy.datetime64[ns]` array. Elevation is scalar or
-/// `(lat, lon)`. Pressure and temperature are `(time)` or `(time, lat, lon)`.
+/// `(lat, lon)`. Pressure and temperature are optional `(time)` or
+/// `(time, lat, lon)` arrays; omit either to skip refraction correction.
 #[pyfunction(
     name = "calculate_solar_position",
     signature = (
@@ -121,8 +122,8 @@ impl PyAoiResult {
         longitude,
         time,
         elevation,
-        pressure,
-        temperature,
+        pressure = None,
+        temperature = None,
         num_threads = 1
     )
 )]
@@ -132,8 +133,8 @@ fn calculate_solar_position_numpy<'py>(
     longitude: PyReadonlyArray1<'py, f64>,
     time: PyReadonlyArray1<'py, Datetime<units::Nanoseconds>>,
     elevation: &Bound<'py, PyAny>,
-    pressure: PyReadonlyArrayDyn<'py, f64>,
-    temperature: PyReadonlyArrayDyn<'py, f64>,
+    pressure: Option<PyReadonlyArrayDyn<'py, f64>>,
+    temperature: Option<PyReadonlyArrayDyn<'py, f64>>,
     num_threads: usize,
 ) -> PyResult<PySolarPositionResult> {
     let elevation_scalar = elevation.extract::<f64>().ok();
@@ -143,8 +144,8 @@ fn calculate_solar_position_numpy<'py>(
         None
     };
     let elevation_input = spatial_input("elevation", elevation_scalar, &elevation_array)?;
-    let pressure_input = atmospheric_input("pressure", &pressure)?;
-    let temperature_input = atmospheric_input("temperature", &temperature)?;
+    let pressure_input = map_option_arr_to_atmospheric_input("pressure", &pressure)?;
+    let temperature_input = map_option_arr_to_atmospheric_input("temperature", &temperature)?;
     let time_values = time.as_array().mapv(i64::from);
 
     let result = calculate_solar_position(
@@ -261,10 +262,11 @@ fn calculate_clearsky_numpy<'py>(
         None
     };
     let time_values = time.as_array().mapv(i64::from);
-    let pressure_input = pressure
-        .as_ref()
-        .map(|values| atmospheric_input("pressure", values))
-        .transpose()?;
+    // let pressure_input = pressure
+    //     .as_ref()
+    //     .map(|values| atmospheric_input("pressure", values))
+    //     .transpose()?;
+    let pressure_input = map_option_arr_to_atmospheric_input("pressure", &pressure)?;
     let result = calculate_clearsky(
         ClearSkyInput {
             time: time_values.view(),
@@ -394,6 +396,16 @@ fn atmospheric_input<'a, 'py>(
             "{name} must be a 1D (time) or 3D (time, lat, lon) array"
         ))),
     }
+}
+
+fn map_option_arr_to_atmospheric_input<'py>(
+    name: &str,
+    input: &'py Option<PyReadonlyArrayDyn<'py, f64>>
+) -> Result<Option<AtmosphericInput<'py>>, PyErr> {
+    input
+        .as_ref()
+        .map(|values| atmospheric_input(name, values))
+        .transpose()
 }
 
 fn to_python_error(error: SolarError) -> PyErr {

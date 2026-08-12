@@ -146,10 +146,6 @@ pub(crate) fn topocentric_elevation_angle_with_geometry(
         return e0_uncorr + delta_e;
     };
 
-    println!(
-        "Calculationg uncorrected topocentric elevation angle. For correction provide pressure and temperature."
-    );
-
     e0_uncorr
 }
 

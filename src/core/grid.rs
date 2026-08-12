@@ -43,15 +43,16 @@ pub(crate) enum AtmosphericInput<'a> {
 ///
 /// The output shape is always `(time, lat, lon)`. Latitude and longitude are
 /// independent one-dimensional axes. Elevation is scalar or `(lat, lon)`;
-/// pressure and temperature are `(time)` or `(time, lat, lon)`. Time values
-/// are Unix timestamps in nanoseconds, matching NumPy `datetime64[ns]` storage.
+/// pressure and temperature are optional `(time)` or `(time, lat, lon)` arrays.
+/// Time values are Unix timestamps in nanoseconds, matching NumPy
+/// `datetime64[ns]` storage.
 pub(crate) struct SolarPositionInput<'a> {
     pub(crate) latitude: ArrayView1<'a, f64>,
     pub(crate) longitude: ArrayView1<'a, f64>,
     pub(crate) time: ArrayView1<'a, i64>,
     pub(crate) elevation: SpatialInput<'a>,
-    pub(crate) pressure: AtmosphericInput<'a>,
-    pub(crate) temperature: AtmosphericInput<'a>,
+    pub(crate) pressure: Option<AtmosphericInput<'a>>,
+    pub(crate) temperature: Option<AtmosphericInput<'a>>,
 }
 
 /// Zenith and azimuth angles, in degrees, shaped `(time, lat, lon)`.
@@ -153,8 +154,12 @@ impl<'a> SolarPositionInput<'a> {
         let shape = (self.time.len(), self.latitude.len(), self.longitude.len());
 
         validate_spatial_input("elevation", &self.elevation, (shape.1, shape.2))?;
-        validate_atmospheric_input("pressure", &self.pressure, shape)?;
-        validate_atmospheric_input("temperature", &self.temperature, shape)?;
+        if let Some(pressure) = &self.pressure {
+            validate_atmospheric_input("pressure", pressure, shape)?;
+        }
+        if let Some(temperature) = &self.temperature {
+            validate_atmospheric_input("temperature", temperature, shape)?;
+        }
 
         Ok(shape)
     }
@@ -304,18 +309,19 @@ pub(crate) fn calculate_solar_position(
                     let longitude_index = cell_index % shape.2;
                     let elevation =
                         spatial_value(&input.elevation, latitude_index, longitude_index);
-                    let pressure = atmospheric_value(
+                    let pressure = map_atmospheric_input_to_value(
                         &input.pressure,
                         time_index,
                         latitude_index,
                         longitude_index,
                     );
-                    let temperature = atmospheric_value(
+                    let temperature = map_atmospheric_input_to_value(
                         &input.temperature,
                         time_index,
                         latitude_index,
                         longitude_index,
                     );
+
                     (*zenith, *azimuth) = calculate_cell(
                         &latitude_geometry[latitude_index],
                         longitude_radians[longitude_index],
@@ -334,6 +340,17 @@ pub(crate) fn calculate_solar_position(
         azimuth: Array3::from_shape_vec(shape, azimuth_values)
             .expect("output buffer length must match the requested shape"),
     })
+}
+
+fn map_atmospheric_input_to_value(
+    input: &Option<AtmosphericInput>,
+    time_index: usize,
+    latitude_index: usize,
+    longitude_index: usize,
+) -> Option<f64> {
+    input
+        .as_ref()
+        .map(|values| atmospheric_value(values, time_index, latitude_index, longitude_index))
 }
 
 /// Calculates angle of incidence without recomputing solar position.
@@ -696,8 +713,8 @@ fn calculate_cell(
     latitude: &ObserverLatitudeGeometry,
     longitude_radians: f64,
     elevation: f64,
-    pressure: f64,
-    temperature: f64,
+    pressure: Option<f64>,
+    temperature: Option<f64>,
     geometry: &TimeGeometry,
 ) -> (f64, f64) {
     let hour_angle = obs_local_hour_angle(
@@ -717,8 +734,8 @@ fn calculate_cell(
         latitude,
         topocentric_declination,
         topocentric_hour_angle,
-        Some(pressure),
-        Some(temperature),
+        pressure,
+        temperature,
     );
     let zenith = topocentric_zenith_angle(elevation_angle.to_degrees());
     let azimuth_west_from_south = topocentric_azimuth_angle_w_from_s_with_geometry(
@@ -767,8 +784,8 @@ mod tests {
                 longitude: longitude.view(),
                 time: times.view(),
                 elevation: SpatialInput::Grid(elevation.view()),
-                pressure: AtmosphericInput::Grid(pressure.view()),
-                temperature: AtmosphericInput::Grid(temperature.view()),
+                pressure: Some(AtmosphericInput::Grid(pressure.view())),
+                temperature: Some(AtmosphericInput::Grid(temperature.view())),
             },
             2,
         )
@@ -783,6 +800,31 @@ mod tests {
                 .iter()
                 .all(|value| (0.0..360.0).contains(value))
         );
+    }
+
+    #[test]
+    fn solar_position_accepts_missing_atmosphere() {
+        let time = Utc.with_ymd_and_hms(2024, 6, 21, 12, 0, 0).unwrap();
+        let latitude = arr1(&[40.0]);
+        let longitude = arr1(&[-105.0]);
+        let times = arr1(&[time.timestamp_nanos_opt().unwrap()]);
+
+        let result = calculate_solar_position(
+            SolarPositionInput {
+                latitude: latitude.view(),
+                longitude: longitude.view(),
+                time: times.view(),
+                elevation: SpatialInput::Scalar(1600.0),
+                pressure: None,
+                temperature: None,
+            },
+            1,
+        )
+        .unwrap();
+
+        assert_eq!(result.zenith.dim(), (1, 1, 1));
+        assert!(result.zenith[[0, 0, 0]].is_finite());
+        assert!(result.azimuth[[0, 0, 0]].is_finite());
     }
 
     #[test]

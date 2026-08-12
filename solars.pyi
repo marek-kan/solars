@@ -62,8 +62,8 @@ def calculate_solar_position(
     longitude: Float64Array,
     time: Datetime64Array,
     elevation: SpatialInput,
-    pressure: Float64Array,
-    temperature: Float64Array,
+    pressure: Float64Array | None = None,
+    temperature: Float64Array | None = None,
     num_threads: int = 1,
 ) -> SolarPositionResult: 
     """
@@ -72,8 +72,8 @@ def calculate_solar_position(
     `latitude`, `longitude` are one-dimensional degree axes;
     `time` is a one-dimensional `numpy.datetime64[ns]` array. 
     `elevation` is scalar or `(lat, lon)`.
-    `pressure` is `(time)` or `(time, lat, lon)`.
-    `temperature` is `(time)` or `(time, lat, lon)`.
+    `pressure` and `temperature` are optional `(time)` or `(time, lat, lon)`
+    arrays. Omit either to skip refraction correction.
     """
     ...
 
