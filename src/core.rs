@@ -9,8 +9,9 @@ pub(crate) mod time;
 pub(crate) mod utils;
 
 pub use grid::{
-    AoiInput, AoiResult, AtmosphericInput, SolarError, SolarPositionInput, SolarPositionResult,
-    SpatialInput, calculate_aoi, calculate_solar_position,
+    AoiInput, AoiResult, AtmosphericInput, ClearSkyInput, ClearSkyResult, PoaInput, PoaResult,
+    SolarError, SolarPositionInput, SolarPositionResult, SpatialInput, calculate_aoi,
+    calculate_clearsky, calculate_poa, calculate_solar_position,
 };
 
 use crate::core::irradiance::aoi;

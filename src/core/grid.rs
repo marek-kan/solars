@@ -1,10 +1,15 @@
-use chrono::DateTime;
+use std::sync::OnceLock;
+
+use chrono::{DateTime, Datelike};
 use ndarray::{Array3, ArrayView1, ArrayView2, ArrayView3};
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 use std::fmt::{Display, Formatter};
 
-use crate::core::irradiance::OpticalLossParameters;
+use crate::core::irradiance::etraterrestrial_radiation;
+use crate::core::irradiance::{
+    ClearSkyIrradiance, OpticalLossParameters, PoaIrradiance, ineichen_clearsky,
+};
 use crate::core::solar_position::{
     ObserverLatitudeGeometry, aberration_correction, apparent_sun_longitude,
     geocentric_sun_declination, geocentric_sun_right_ascension, obs_local_hour_angle,
@@ -20,6 +25,7 @@ use crate::periodic_tables::earth::{
     calculate_heliocentric_coeff, sum_table,
 };
 use crate::periodic_tables::nutation::{calculate_dpsi_depsilon, calculate_epsilon};
+use crate::periodic_tables::tl::{LinkeTurbidityGrid, SpatialInterpolation};
 
 /// A value that is either constant over the spatial grid or specified per location.
 pub enum SpatialInput<'a> {
@@ -71,6 +77,52 @@ pub struct AoiResult {
     pub aoi: Array3<f64>,
 }
 
+/// Borrowed inputs for Hay-Davies plane-of-array irradiance calculations.
+///
+/// Zenith, geometric AOI, DNI, GHI, and DHI use `(time, lat, lon)`. Panel
+/// tilt and albedo are scalar or `(lat, lon)`. Extraterrestrial DNI is either
+/// `(time)` or `(time, lat, lon)`.
+pub struct PoaInput<'a> {
+    pub zenith: ArrayView3<'a, f64>,
+    pub aoi: ArrayView3<'a, f64>,
+    pub panel_tilt: SpatialInput<'a>,
+    pub dni: ArrayView3<'a, f64>,
+    pub ghi: ArrayView3<'a, f64>,
+    pub dhi: ArrayView3<'a, f64>,
+    pub dni_extra: AtmosphericInput<'a>,
+    pub albedo: SpatialInput<'a>,
+}
+
+/// Hay-Davies plane-of-array irradiance components, in W/m2.
+pub struct PoaResult {
+    pub global: Array3<f64>,
+    pub direct: Array3<f64>,
+    pub diffuse: Array3<f64>,
+    pub sky_diffuse: Array3<f64>,
+    pub ground_diffuse: Array3<f64>,
+}
+
+/// Borrowed inputs for Ineichen/Perez clear-sky irradiance calculations.
+///
+/// Zenith uses `(time, lat, lon)`. Time is Unix nanoseconds, latitude and
+/// longitude are degree axes, elevation is scalar or `(lat, lon)`, and
+/// pressure is optional in millibars.
+pub struct ClearSkyInput<'a> {
+    pub time: ArrayView1<'a, i64>,
+    pub latitude: ArrayView1<'a, f64>,
+    pub longitude: ArrayView1<'a, f64>,
+    pub zenith: ArrayView3<'a, f64>,
+    pub elevation: SpatialInput<'a>,
+    pub pressure: Option<AtmosphericInput<'a>>,
+}
+
+/// Ineichen/Perez clear-sky irradiance components, in W/m2.
+pub struct ClearSkyResult {
+    pub ghi: Array3<f64>,
+    pub dni: Array3<f64>,
+    pub dhi: Array3<f64>,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum SolarError {
     InvalidShape(String),
@@ -120,6 +172,60 @@ impl<'a> AoiInput<'a> {
 
         validate_spatial_input("panel_tilt", &self.panel_tilt, (shape.1, shape.2))?;
         validate_spatial_input("panel_azimuth", &self.panel_azimuth, (shape.1, shape.2))?;
+
+        Ok(shape)
+    }
+}
+
+impl<'a> PoaInput<'a> {
+    pub(crate) fn output_shape(&self) -> Result<(usize, usize, usize), SolarError> {
+        let shape = self.zenith.dim();
+        for (name, values) in [
+            ("aoi", self.aoi),
+            ("dni", self.dni),
+            ("ghi", self.ghi),
+            ("dhi", self.dhi),
+        ] {
+            if values.dim() != shape {
+                return Err(SolarError::InvalidShape(format!(
+                    "{name} must have shape (time, lat, lon) = {shape:?}; got {:?}",
+                    values.dim()
+                )));
+            }
+        }
+
+        validate_spatial_input("panel_tilt", &self.panel_tilt, (shape.1, shape.2))?;
+        validate_spatial_input("albedo", &self.albedo, (shape.1, shape.2))?;
+        validate_atmospheric_input("dni_extra", &self.dni_extra, shape)?;
+
+        Ok(shape)
+    }
+}
+
+impl<'a> ClearSkyInput<'a> {
+    pub(crate) fn output_shape(&self) -> Result<(usize, usize, usize), SolarError> {
+        let shape = self.zenith.dim();
+        if self.time.len() != shape.0 {
+            return Err(SolarError::InvalidShape(format!(
+                "time must have shape (time) = ({},); got ({},)",
+                shape.0,
+                self.time.len()
+            )));
+        }
+        if self.latitude.len() != shape.1 || self.longitude.len() != shape.2 {
+            return Err(SolarError::InvalidShape(format!(
+                "latitude and longitude must have lengths ({}, {}); got ({}, {})",
+                shape.1,
+                shape.2,
+                self.latitude.len(),
+                self.longitude.len()
+            )));
+        }
+
+        validate_spatial_input("elevation", &self.elevation, (shape.1, shape.2))?;
+        if let Some(pressure) = &self.pressure {
+            validate_atmospheric_input("pressure", pressure, shape)?;
+        }
 
         Ok(shape)
     }
@@ -280,6 +386,205 @@ pub fn calculate_aoi(input: AoiInput<'_>, num_threads: usize) -> Result<AoiResul
     })
 }
 
+/// Calculates Ineichen/Perez clear-sky GHI, DNI, and DHI from precomputed zenith.
+pub fn calculate_clearsky(
+    input: ClearSkyInput<'_>,
+    num_threads: usize,
+) -> Result<ClearSkyResult, SolarError> {
+    if num_threads == 0 {
+        return Err(SolarError::InvalidThreadCount);
+    }
+
+    let shape = input.output_shape()?;
+    if shape.1 == 0 || shape.2 == 0 {
+        return Err(SolarError::InvalidShape(
+            "latitude and longitude dimensions must each be greater than zero".to_owned(),
+        ));
+    }
+
+    let cells_per_time = shape.1 * shape.2;
+    let mut ghi_values = vec![0.0; shape.0 * cells_per_time];
+    let mut dni_values = vec![0.0; shape.0 * cells_per_time];
+    let mut dhi_values = vec![0.0; shape.0 * cells_per_time];
+    let thread_pool = ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .map_err(|error| SolarError::ThreadPool(error.to_string()))?;
+
+    thread_pool.install(|| {
+        let linke_turbidity = linke_turbidity_grid();
+        ghi_values
+            .par_iter_mut()
+            .zip(dni_values.par_iter_mut())
+            .zip(dhi_values.par_iter_mut())
+            .enumerate()
+            .for_each(|(output_index, ((ghi, dni), dhi))| {
+                let time_index = output_index / cells_per_time;
+                let cell_index = output_index % cells_per_time;
+                let latitude_index = cell_index / shape.2;
+                let longitude_index = cell_index % shape.2;
+                let pressure = input.pressure.as_ref().map(|values| {
+                    atmospheric_value(values, time_index, latitude_index, longitude_index)
+                });
+                let time = DateTime::from_timestamp(
+                    input.time[time_index].div_euclid(1_000_000_000),
+                    input.time[time_index].rem_euclid(1_000_000_000) as u32,
+                )
+                .expect("ClearSkyInput timestamps must be valid");
+                let linke_turbidity = linke_turbidity
+                    .interpolate_with_spatial_interpolation(
+                        time,
+                        input.latitude[latitude_index],
+                        input.longitude[longitude_index],
+                        SpatialInterpolation::Nearest,
+                    )
+                    .unwrap_or(0.0);
+                let result: ClearSkyIrradiance = ineichen_clearsky(
+                    input.zenith[[time_index, latitude_index, longitude_index]],
+                    linke_turbidity as f64,
+                    spatial_value(&input.elevation, latitude_index, longitude_index),
+                    pressure,
+                    etraterrestrial_radiation(time.ordinal() as i64),
+                );
+                *ghi = result.ghi;
+                *dni = result.dni;
+                *dhi = result.dhi;
+            });
+    });
+
+    Ok(ClearSkyResult {
+        ghi: Array3::from_shape_vec(shape, ghi_values)
+            .expect("output buffer length must match the requested shape"),
+        dni: Array3::from_shape_vec(shape, dni_values)
+            .expect("output buffer length must match the requested shape"),
+        dhi: Array3::from_shape_vec(shape, dhi_values)
+            .expect("output buffer length must match the requested shape"),
+    })
+}
+
+fn linke_turbidity_grid() -> &'static LinkeTurbidityGrid {
+    static GRID: OnceLock<LinkeTurbidityGrid> = OnceLock::new();
+    GRID.get_or_init(|| {
+        LinkeTurbidityGrid::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/periodic_tables/LinkeTurbidities.h5"
+        ))
+        .expect("the bundled Linke turbidity dataset should load")
+    })
+}
+
+/// Calculates Hay-Davies plane-of-array irradiance from precomputed AOI and zenith.
+pub fn calculate_poa(input: PoaInput<'_>, num_threads: usize) -> Result<PoaResult, SolarError> {
+    if num_threads == 0 {
+        return Err(SolarError::InvalidThreadCount);
+    }
+
+    let shape = input.output_shape()?;
+    if shape.1 == 0 || shape.2 == 0 {
+        return Err(SolarError::InvalidShape(
+            "latitude and longitude dimensions must each be greater than zero".to_owned(),
+        ));
+    }
+
+    let cells_per_time = shape.1 * shape.2;
+    let mut global_values = vec![0.0; shape.0 * cells_per_time];
+    let mut direct_values = vec![0.0; shape.0 * cells_per_time];
+    let mut diffuse_values = vec![0.0; shape.0 * cells_per_time];
+    let mut sky_diffuse_values = vec![0.0; shape.0 * cells_per_time];
+    let mut ground_diffuse_values = vec![0.0; shape.0 * cells_per_time];
+    let thread_pool = ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .map_err(|error| SolarError::ThreadPool(error.to_string()))?;
+
+    thread_pool.install(|| {
+        global_values
+            .par_iter_mut()
+            .zip(direct_values.par_iter_mut())
+            .zip(diffuse_values.par_iter_mut())
+            .zip(sky_diffuse_values.par_iter_mut())
+            .zip(ground_diffuse_values.par_iter_mut())
+            .enumerate()
+            .for_each(
+                |(output_index, ((((global, direct), diffuse), sky_diffuse), ground_diffuse))| {
+                    let time_index = output_index / cells_per_time;
+                    let cell_index = output_index % cells_per_time;
+                    let latitude_index = cell_index / shape.2;
+                    let longitude_index = cell_index % shape.2;
+                    let result = poa_from_aoi(
+                        &input.panel_tilt,
+                        input.zenith[[time_index, latitude_index, longitude_index]],
+                        input.aoi[[time_index, latitude_index, longitude_index]],
+                        input.dni[[time_index, latitude_index, longitude_index]],
+                        input.ghi[[time_index, latitude_index, longitude_index]],
+                        input.dhi[[time_index, latitude_index, longitude_index]],
+                        atmospheric_value(
+                            &input.dni_extra,
+                            time_index,
+                            latitude_index,
+                            longitude_index,
+                        ),
+                        &input.albedo,
+                        latitude_index,
+                        longitude_index,
+                    );
+                    *global = result.global;
+                    *direct = result.direct;
+                    *diffuse = result.diffuse;
+                    *sky_diffuse = result.sky_diffuse;
+                    *ground_diffuse = result.ground_diffuse;
+                },
+            );
+    });
+
+    Ok(PoaResult {
+        global: Array3::from_shape_vec(shape, global_values)
+            .expect("output buffer length must match the requested shape"),
+        direct: Array3::from_shape_vec(shape, direct_values)
+            .expect("output buffer length must match the requested shape"),
+        diffuse: Array3::from_shape_vec(shape, diffuse_values)
+            .expect("output buffer length must match the requested shape"),
+        sky_diffuse: Array3::from_shape_vec(shape, sky_diffuse_values)
+            .expect("output buffer length must match the requested shape"),
+        ground_diffuse: Array3::from_shape_vec(shape, ground_diffuse_values)
+            .expect("output buffer length must match the requested shape"),
+    })
+}
+
+fn poa_from_aoi(
+    panel_tilt: &SpatialInput<'_>,
+    zenith: f64,
+    aoi: f64,
+    dni: f64,
+    ghi: f64,
+    dhi: f64,
+    dni_extra: f64,
+    albedo: &SpatialInput<'_>,
+    latitude_index: usize,
+    longitude_index: usize,
+) -> PoaIrradiance {
+    let panel_tilt = spatial_value(panel_tilt, latitude_index, longitude_index);
+    let albedo = spatial_value(albedo, latitude_index, longitude_index);
+    let aoi_projection = aoi.to_radians().cos().max(0.0);
+    let zenith_projection = zenith.to_radians().cos().max(0.01745);
+    let projection_ratio = aoi_projection / zenith_projection;
+    let anisotropy_index = dni / dni_extra;
+    let sky_view_factor = (1.0 + panel_tilt.to_radians().cos()) / 2.0;
+    let sky_diffuse = (dhi * (1.0 - anisotropy_index) * sky_view_factor).max(0.0)
+        + (dhi * anisotropy_index * projection_ratio).max(0.0);
+    let ground_diffuse = ghi * albedo * (1.0 - panel_tilt.to_radians().cos()) / 2.0;
+    let direct = dni * aoi_projection;
+    let diffuse = sky_diffuse + ground_diffuse;
+
+    PoaIrradiance {
+        global: direct + diffuse,
+        direct,
+        diffuse,
+        sky_diffuse,
+        ground_diffuse,
+    }
+}
+
 fn spatial_value(input: &SpatialInput<'_>, latitude_index: usize, longitude_index: usize) -> f64 {
     match input {
         SpatialInput::Scalar(value) => *value,
@@ -418,8 +723,8 @@ fn calculate_cell(
 #[cfg(test)]
 mod tests {
     use super::{
-        AoiInput, AtmosphericInput, SolarPositionInput, SpatialInput, calculate_aoi,
-        calculate_solar_position,
+        AoiInput, AtmosphericInput, ClearSkyInput, PoaInput, SolarPositionInput, SpatialInput,
+        calculate_aoi, calculate_clearsky, calculate_poa, calculate_solar_position,
     };
     use crate::core::calculate_scalar_solar_position;
     use chrono::{TimeZone, Utc};
@@ -571,6 +876,75 @@ mod tests {
         assert_eq!(result.aoi.dim(), (1, 2, 2));
         assert_eq!(result.aoi[[0, 0, 0]], 0.0);
         assert!((result.aoi[[0, 1, 1]] - 45.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn grid_haydavies_poa_daytime_conditions() {
+        let zenith = Array3::from_elem((1, 1, 1), 40.0);
+        let azimuth = Array3::from_elem((1, 1, 1), 190.0);
+        let geometric_aoi = calculate_aoi(
+            AoiInput {
+                zenith: zenith.view(),
+                azimuth: azimuth.view(),
+                panel_tilt: SpatialInput::Scalar(30.0),
+                panel_azimuth: SpatialInput::Scalar(180.0),
+                optical_loss_params: None,
+            },
+            1,
+        )
+        .unwrap();
+        let dni = Array3::from_elem((1, 1, 1), 800.0);
+        let ghi = Array3::from_elem((1, 1, 1), 600.0);
+        let dhi = Array3::from_elem((1, 1, 1), 120.0);
+        let dni_extra = arr1(&[1367.0]);
+
+        let result = calculate_poa(
+            PoaInput {
+                zenith: zenith.view(),
+                aoi: geometric_aoi.aoi.view(),
+                panel_tilt: SpatialInput::Scalar(30.0),
+                dni: dni.view(),
+                ghi: ghi.view(),
+                dhi: dhi.view(),
+                dni_extra: AtmosphericInput::Time(dni_extra.view()),
+                albedo: SpatialInput::Scalar(0.2),
+            },
+            1,
+        )
+        .unwrap();
+
+        assert!((result.global[[0, 0, 0]] - 928.251_756_634_908).abs() < 1e-10);
+        assert!((result.direct[[0, 0, 0]] - 783.940_047_158_946).abs() < 1e-10);
+        assert!((result.diffuse[[0, 0, 0]] - 144.311_709_475_962).abs() < 1e-10);
+        assert!((result.sky_diffuse[[0, 0, 0]] - 136.273_233_703_029).abs() < 1e-10);
+        assert!((result.ground_diffuse[[0, 0, 0]] - 8.038_475_772_934).abs() < 1e-10);
+    }
+
+    #[test]
+    fn grid_ineichen_clearsky_matches_pvlib_with_millibar_pressure() {
+        let time = Utc.with_ymd_and_hms(2024, 1, 15, 12, 0, 0).unwrap();
+        let times = arr1(&[time.timestamp_nanos_opt().unwrap()]);
+        let latitude = arr1(&[52.5]);
+        let longitude = arr1(&[13.416_666_666_666_657]);
+        let zenith = Array3::from_elem((1, 1, 1), 50.0);
+        let pressure = arr1(&[1013.25]);
+
+        let result = calculate_clearsky(
+            ClearSkyInput {
+                time: times.view(),
+                latitude: latitude.view(),
+                longitude: longitude.view(),
+                zenith: zenith.view(),
+                elevation: SpatialInput::Scalar(34.0),
+                pressure: Some(AtmosphericInput::Time(pressure.view())),
+            },
+            1,
+        )
+        .unwrap();
+
+        assert!((result.ghi[[0, 0, 0]] - 669.116_526_792_958).abs() < 1e-5);
+        assert!((result.dni[[0, 0, 0]] - 921.089_422_814_756).abs() < 1e-5);
+        assert!((result.dhi[[0, 0, 0]] - 77.051_658_394_307).abs() < 1e-5);
     }
 }
 

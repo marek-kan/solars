@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::path::Path;
 
-use chrono::{DateTime, Datelike, Timelike, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use hdf5_pure::File;
 
 const LATITUDE_COUNT: usize = 2_160;
@@ -57,9 +57,10 @@ impl LinkeTurbidityGrid {
 
     /// Return TL interpolated in latitude, longitude, and calendar time.
     ///
-    /// Time interpolation is linear between the current month's climatology and
-    /// the next month's climatology. December wraps to January. Longitude wraps
-    /// at the antimeridian and latitude is clamped to the grid domain.
+    /// Time interpolation is linear between monthly climatology values centered
+    /// on each month's midpoint, matching pvlib. December and January wrap at
+    /// the year boundary. Longitude wraps at the antimeridian and latitude is
+    /// clamped to the grid domain.
     pub fn interpolate(&self, time: DateTime<Utc>, latitude: f64, longitude: f64) -> Option<f32> {
         self.interpolate_with_spatial_interpolation(
             time,
@@ -212,47 +213,48 @@ impl LinkeTurbidityGrid {
 
 fn month_position(time: DateTime<Utc>) -> (usize, usize, f64) {
     let month = time.month0() as usize;
-    let next_month = (month + 1) % MONTH_COUNT;
-    let days_in_month = days_in_month(time.year(), time.month());
-    let elapsed_days = (time.ordinal0() - days_before_month(time.year(), time.month())) as f64
-        + time.hour() as f64 / 24.0
-        + time.minute() as f64 / 1_440.0
-        + time.second() as f64 / 86_400.0
-        + time.nanosecond() as f64 / 86_400_000_000_000.0;
+    let days_in_month = month_days(time.year(), month);
+    let month_start = time.ordinal() as f64 - time.day() as f64;
+    let current_midpoint = month_start + days_in_month as f64 / 2.0;
+    let day_of_year = time.ordinal() as f64;
 
-    (
-        month,
-        next_month,
-        (elapsed_days / days_in_month as f64).min(1.0),
-    )
-}
-
-fn days_in_month(year: i32, month: u32) -> u32 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        _ => unreachable!("chrono::DateTime always provides a valid month"),
+    if day_of_year < current_midpoint {
+        let previous_month = (month + MONTH_COUNT - 1) % MONTH_COUNT;
+        let previous_midpoint = if month == 0 {
+            -31.0 / 2.0
+        } else {
+            month_start - month_days(time.year(), previous_month) as f64 / 2.0
+        };
+        (
+            previous_month,
+            month,
+            (day_of_year - previous_midpoint) / (current_midpoint - previous_midpoint),
+        )
+    } else {
+        let next_month = (month + 1) % MONTH_COUNT;
+        let next_midpoint = if month == MONTH_COUNT - 1 {
+            (if is_leap_year(time.year()) {
+                366.0
+            } else {
+                365.0
+            }) + 31.0 / 2.0
+        } else {
+            month_start + days_in_month as f64 + month_days(time.year(), next_month) as f64 / 2.0
+        };
+        (
+            month,
+            next_month,
+            (day_of_year - current_midpoint) / (next_midpoint - current_midpoint),
+        )
     }
 }
 
-fn days_before_month(year: i32, month: u32) -> u32 {
-    let leap_day = u32::from(is_leap_year(year) && month > 2);
+fn month_days(year: i32, month: usize) -> u32 {
     match month {
-        1 => 0,
-        2 => 31,
-        3 => 59 + leap_day,
-        4 => 90 + leap_day,
-        5 => 120 + leap_day,
-        6 => 151 + leap_day,
-        7 => 181 + leap_day,
-        8 => 212 + leap_day,
-        9 => 243 + leap_day,
-        10 => 273 + leap_day,
-        11 => 304 + leap_day,
-        12 => 334 + leap_day,
-        _ => unreachable!("chrono::DateTime always provides a valid month"),
+        1 if is_leap_year(year) => 29,
+        1 => 28,
+        3 | 5 | 8 | 10 => 30,
+        _ => 31,
     }
 }
 
@@ -287,8 +289,9 @@ fn spatial_position(
 
     match spatial_interpolation {
         SpatialInterpolation::Nearest => {
-            let latitude = (lat0 as f64 + lat_weight).round() as usize;
-            let longitude = ((lon0 as f64 + lon_weight).round() as usize) % LONGITUDE_COUNT;
+            let latitude = (lat0 as f64 + lat_weight).round_ties_even() as usize;
+            let longitude =
+                ((lon0 as f64 + lon_weight).round_ties_even() as usize) % LONGITUDE_COUNT;
             (latitude, latitude, 0.0, longitude, longitude, 0.0)
         }
         SpatialInterpolation::Bilinear => (lat0, lat1, lat_weight, lon0, lon1, lon_weight),

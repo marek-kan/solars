@@ -1,19 +1,18 @@
 pub mod core; // for main.rs
 mod periodic_tables;
 
-#[cfg(test)]
-mod test;
-use ndarray::{Ix1, Ix2, Ix3};
+use chrono::{DateTime, Datelike};
+use ndarray::{Array1, Ix1, Ix2, Ix3};
 use numpy::{
     IntoPyArray, PyArray3, PyReadonlyArray1, PyReadonlyArray3, PyReadonlyArrayDyn,
     datetime::{Datetime, units},
 };
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyModule};
 
-use crate::core::irradiance::OpticalLossParameters;
+use crate::core::irradiance::{OpticalLossParameters, etraterrestrial_radiation};
 use crate::core::{
-    AoiInput, AtmosphericInput, SolarError, SolarPositionInput, SpatialInput, calculate_aoi,
-    calculate_solar_position,
+    AoiInput, AtmosphericInput, ClearSkyInput, PoaInput, SolarError, SolarPositionInput,
+    SpatialInput, calculate_aoi, calculate_clearsky, calculate_poa, calculate_solar_position,
 };
 
 #[pyclass(name = "SolarPositionResult")]
@@ -40,6 +39,68 @@ struct PyAoiResult {
     aoi: Py<PyArray3<f64>>,
 }
 
+#[pyclass(name = "ClearSkyResult")]
+struct PyClearSkyResult {
+    ghi: Py<PyArray3<f64>>,
+    dni: Py<PyArray3<f64>>,
+    dhi: Py<PyArray3<f64>>,
+}
+
+#[pymethods]
+impl PyClearSkyResult {
+    #[getter]
+    fn ghi(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.ghi.clone_ref(py)
+    }
+
+    #[getter]
+    fn dni(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.dni.clone_ref(py)
+    }
+
+    #[getter]
+    fn dhi(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.dhi.clone_ref(py)
+    }
+}
+
+#[pyclass(name = "PoaResult")]
+struct PyPoaResult {
+    global: Py<PyArray3<f64>>,
+    direct: Py<PyArray3<f64>>,
+    diffuse: Py<PyArray3<f64>>,
+    sky_diffuse: Py<PyArray3<f64>>,
+    ground_diffuse: Py<PyArray3<f64>>,
+}
+
+#[pymethods]
+impl PyPoaResult {
+    #[getter]
+    fn global(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.global.clone_ref(py)
+    }
+
+    #[getter]
+    fn direct(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.direct.clone_ref(py)
+    }
+
+    #[getter]
+    fn diffuse(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.diffuse.clone_ref(py)
+    }
+
+    #[getter]
+    fn sky_diffuse(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.sky_diffuse.clone_ref(py)
+    }
+
+    #[getter]
+    fn ground_diffuse(&self, py: Python<'_>) -> Py<PyArray3<f64>> {
+        self.ground_diffuse.clone_ref(py)
+    }
+}
+
 #[pymethods]
 impl PyAoiResult {
     #[getter]
@@ -53,7 +114,18 @@ impl PyAoiResult {
 /// `latitude` and `longitude` are one-dimensional degree axes; `time` is a
 /// one-dimensional `numpy.datetime64[ns]` array. Elevation is scalar or
 /// `(lat, lon)`. Pressure and temperature are `(time)` or `(time, lat, lon)`.
-#[pyfunction(name = "calculate_solar_position")]
+#[pyfunction(
+    name = "calculate_solar_position",
+    signature = (
+        latitude,
+        longitude,
+        time,
+        elevation,
+        pressure,
+        temperature,
+        num_threads = 1
+    )
+)]
 fn calculate_solar_position_numpy<'py>(
     py: Python<'py>,
     latitude: PyReadonlyArray1<'py, f64>,
@@ -106,7 +178,7 @@ fn calculate_solar_position_numpy<'py>(
         azimuth,
         panel_tilt,
         panel_azimuth,
-        num_threads,
+        num_threads = 1,
         apply_optical_loss = false,
         refractive_index = 1.526,
         extinction_coefficient = 4.0,
@@ -163,6 +235,119 @@ fn calculate_aoi_numpy<'py>(
     })
 }
 
+/// Compute Ineichen/Perez clear-sky irradiance arrays shaped `(time, lat, lon)`.
+///
+/// `time` is a one-dimensional `numpy.datetime64[ns]` array. Zenith uses
+/// `(time, lat, lon)`. Elevation is scalar or `(lat, lon)`. Pressure is
+/// optional, in millibars, and may be `(time)` or `(time, lat, lon)`.
+#[pyfunction(
+    name = "calculate_clearsky",
+    signature = (latitude, longitude, time, zenith, elevation, pressure = None, num_threads = 1)
+)]
+fn calculate_clearsky_numpy<'py>(
+    py: Python<'py>,
+    latitude: PyReadonlyArray1<'py, f64>,
+    longitude: PyReadonlyArray1<'py, f64>,
+    time: PyReadonlyArray1<'py, Datetime<units::Nanoseconds>>,
+    zenith: PyReadonlyArray3<'py, f64>,
+    elevation: &Bound<'py, PyAny>,
+    pressure: Option<PyReadonlyArrayDyn<'py, f64>>,
+    num_threads: usize,
+) -> PyResult<PyClearSkyResult> {
+    let elevation_scalar = elevation.extract::<f64>().ok();
+    let elevation_array = if elevation_scalar.is_none() {
+        Some(elevation.extract::<PyReadonlyArrayDyn<f64>>()?)
+    } else {
+        None
+    };
+    let time_values = time.as_array().mapv(i64::from);
+    let pressure_input = pressure
+        .as_ref()
+        .map(|values| atmospheric_input("pressure", values))
+        .transpose()?;
+    let result = calculate_clearsky(
+        ClearSkyInput {
+            time: time_values.view(),
+            latitude: latitude.as_array(),
+            longitude: longitude.as_array(),
+            zenith: zenith.as_array(),
+            elevation: spatial_input("elevation", elevation_scalar, &elevation_array)?,
+            pressure: pressure_input,
+        },
+        num_threads,
+    )
+    .map_err(to_python_error)?;
+
+    Ok(PyClearSkyResult {
+        ghi: result.ghi.into_pyarray(py).unbind(),
+        dni: result.dni.into_pyarray(py).unbind(),
+        dhi: result.dhi.into_pyarray(py).unbind(),
+    })
+}
+
+/// Compute Hay-Davies plane-of-array irradiance arrays shaped `(time, lat, lon)`.
+///
+/// Zenith, AOI, DNI, GHI, and DHI use `(time, lat, lon)`. Panel tilt is
+/// scalar or `(lat, lon)` and albedo is scalar. `time` derives extraterrestrial DNI.
+#[pyfunction(
+    name = "calculate_poa",
+    signature = (time, zenith, aoi, panel_tilt, dni, ghi, dhi, albedo = 0.25, num_threads = 1)
+)]
+fn calculate_poa_numpy<'py>(
+    py: Python<'py>,
+    time: PyReadonlyArray1<'py, Datetime<units::Nanoseconds>>,
+    zenith: PyReadonlyArray3<'py, f64>,
+    aoi: PyReadonlyArray3<'py, f64>,
+    panel_tilt: &Bound<'py, PyAny>,
+    dni: PyReadonlyArray3<'py, f64>,
+    ghi: PyReadonlyArray3<'py, f64>,
+    dhi: PyReadonlyArray3<'py, f64>,
+    albedo: f64,
+    num_threads: usize,
+) -> PyResult<PyPoaResult> {
+    let panel_tilt_scalar = panel_tilt.extract::<f64>().ok();
+    let panel_tilt_array = if panel_tilt_scalar.is_none() {
+        Some(panel_tilt.extract::<PyReadonlyArrayDyn<f64>>()?)
+    } else {
+        None
+    };
+    let time_values = time.as_array().mapv(i64::from);
+    let dni_extra = time_values
+        .iter()
+        .map(|timestamp| {
+            let seconds = timestamp.div_euclid(1_000_000_000);
+            let nanoseconds = timestamp.rem_euclid(1_000_000_000) as u32;
+            let time = DateTime::from_timestamp(seconds, nanoseconds).ok_or_else(|| {
+                PyValueError::new_err(format!("invalid Unix timestamp: {timestamp}"))
+            })?;
+            Ok(etraterrestrial_radiation(time.ordinal() as i64))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let dni_extra = Array1::from(dni_extra);
+    let result = calculate_poa(
+        PoaInput {
+            zenith: zenith.as_array(),
+            aoi: aoi.as_array(),
+            panel_tilt: spatial_input("panel_tilt", panel_tilt_scalar, &panel_tilt_array)?,
+            dni: dni.as_array(),
+            ghi: ghi.as_array(),
+            dhi: dhi.as_array(),
+            dni_extra: AtmosphericInput::Time(dni_extra.view()),
+            albedo: SpatialInput::Scalar(albedo),
+        },
+        num_threads,
+    )
+    .map_err(to_python_error)?;
+
+    Ok(PyPoaResult {
+        global: result.global.into_pyarray(py).unbind(),
+        direct: result.direct.into_pyarray(py).unbind(),
+        diffuse: result.diffuse.into_pyarray(py).unbind(),
+        sky_diffuse: result.sky_diffuse.into_pyarray(py).unbind(),
+        ground_diffuse: result.ground_diffuse.into_pyarray(py).unbind(),
+    })
+}
+
 fn spatial_input<'a, 'py>(
     name: &str,
     scalar: Option<f64>,
@@ -214,7 +399,14 @@ fn to_python_error(error: SolarError) -> PyErr {
 fn solars(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySolarPositionResult>()?;
     module.add_class::<PyAoiResult>()?;
+    module.add_class::<PyClearSkyResult>()?;
+    module.add_class::<PyPoaResult>()?;
     module.add_function(wrap_pyfunction!(calculate_solar_position_numpy, module)?)?;
     module.add_function(wrap_pyfunction!(calculate_aoi_numpy, module)?)?;
+    module.add_function(wrap_pyfunction!(calculate_clearsky_numpy, module)?)?;
+    module.add_function(wrap_pyfunction!(calculate_poa_numpy, module)?)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod test;
