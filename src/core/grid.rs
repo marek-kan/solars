@@ -7,6 +7,7 @@ use rayon::prelude::*;
 use std::fmt::{Display, Formatter};
 
 use crate::core::irradiance::etraterrestrial_radiation;
+use crate::core::irradiance::poa_haydavies;
 use crate::core::irradiance::{
     ClearSkyIrradiance, OpticalLossParameters, PoaIrradiance, ineichen_clearsky,
 };
@@ -534,12 +535,11 @@ pub(crate) fn calculate_poa(
                     let cell_index = output_index % cells_per_time;
                     let latitude_index = cell_index / shape.2;
                     let longitude_index = cell_index % shape.2;
-                    let result = poa_from_aoi(
-                        &input.panel_tilt,
+                    let result = poa_haydavies(
+                        spatial_value(&input.panel_tilt, latitude_index, longitude_index),
                         input.zenith[[time_index, latitude_index, longitude_index]],
-                        input.aoi[[time_index, latitude_index, longitude_index]],
-                        input.dni[[time_index, latitude_index, longitude_index]],
                         input.ghi[[time_index, latitude_index, longitude_index]],
+                        input.dni[[time_index, latitude_index, longitude_index]],
                         input.dhi[[time_index, latitude_index, longitude_index]],
                         atmospheric_value(
                             &input.dni_extra,
@@ -547,15 +547,15 @@ pub(crate) fn calculate_poa(
                             latitude_index,
                             longitude_index,
                         ),
+                        input.aoi[[time_index, latitude_index, longitude_index]],
                         atmospheric_value(
                             &input.albedo,
                             time_index,
                             latitude_index,
                             longitude_index,
                         ),
-                        latitude_index,
-                        longitude_index,
                     );
+
                     *global = result.global;
                     *direct = result.direct;
                     *diffuse = result.diffuse;
@@ -577,40 +577,6 @@ pub(crate) fn calculate_poa(
         ground_diffuse: Array3::from_shape_vec(shape, ground_diffuse_values)
             .expect("output buffer length must match the requested shape"),
     })
-}
-
-fn poa_from_aoi(
-    panel_tilt: &SpatialInput<'_>,
-    zenith: f64,
-    aoi: f64,
-    dni: f64,
-    ghi: f64,
-    dhi: f64,
-    dni_extra: f64,
-    albedo: f64,
-    latitude_index: usize,
-    longitude_index: usize,
-) -> PoaIrradiance {
-    let panel_tilt = spatial_value(panel_tilt, latitude_index, longitude_index);
-    // let albedo = spatial_value(albedo, latitude_index, longitude_index);
-    let aoi_projection = aoi.to_radians().cos().max(0.0);
-    let zenith_projection = zenith.to_radians().cos().max(0.01745);
-    let projection_ratio = aoi_projection / zenith_projection;
-    let anisotropy_index = dni / dni_extra;
-    let sky_view_factor = (1.0 + panel_tilt.to_radians().cos()) / 2.0;
-    let sky_diffuse = (dhi * (1.0 - anisotropy_index) * sky_view_factor).max(0.0)
-        + (dhi * anisotropy_index * projection_ratio).max(0.0);
-    let ground_diffuse = ghi * albedo * (1.0 - panel_tilt.to_radians().cos()) / 2.0;
-    let direct = dni * aoi_projection;
-    let diffuse = sky_diffuse + ground_diffuse;
-
-    PoaIrradiance {
-        global: direct + diffuse,
-        direct,
-        diffuse,
-        sky_diffuse,
-        ground_diffuse,
-    }
 }
 
 fn spatial_value(input: &SpatialInput<'_>, latitude_index: usize, longitude_index: usize) -> f64 {

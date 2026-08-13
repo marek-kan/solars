@@ -400,7 +400,7 @@ fn atmospheric_input<'a, 'py>(
 
 fn map_option_arr_to_atmospheric_input<'py>(
     name: &str,
-    input: &'py Option<PyReadonlyArrayDyn<'py, f64>>
+    input: &'py Option<PyReadonlyArrayDyn<'py, f64>>,
 ) -> Result<Option<AtmosphericInput<'py>>, PyErr> {
     input
         .as_ref()
