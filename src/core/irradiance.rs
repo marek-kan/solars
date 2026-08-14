@@ -26,14 +26,14 @@ impl Default for OpticalLossParameters {
 /// the dimensionless physical incidence angle modifier for uncoated glass.
 pub(crate) fn aoi(
     zenith_angle: f64,
-    topocentric_azimuth_from_north: f64,
+    azimuth_angle: f64,
     panel_tilt: f64,
     panel_azimuth: f64,
     optical_loss: Option<OpticalLossParameters>,
 ) -> f64 {
     let zenith_rad = zenith_angle.to_radians();
     let tilt_rad = panel_tilt.to_radians();
-    let azimuth_diff_rad = (topocentric_azimuth_from_north - panel_azimuth).to_radians();
+    let azimuth_diff_rad = (azimuth_angle - panel_azimuth).to_radians();
     let cos_aoi = zenith_rad.cos() * tilt_rad.cos()
         + zenith_rad.sin() * tilt_rad.sin() * azimuth_diff_rad.cos();
     let geometric_aoi = cos_aoi.clamp(-1.0, 1.0).acos().to_degrees();
@@ -232,24 +232,32 @@ mod tests {
         assert!((actual.ground_diffuse - 8.038_475_772_934).abs() < 1e-10);
     }
 
-    // #[test]
-    // fn haydavies_poa_near_the_horizon() {
-    //     let aoi = aoi(88.0, 110.0, 45.0, 135.0, None);
-    //     let actual = poa_haydavies(45.0, 84.0, 90.0, 200.0, 60.0, 1414.0, aoi, 0.25);
+    #[test]
+    fn haydavies_poa_near_the_horizon() {
+        let zenith = 87.0;
+        let azimuth = 110.0;
+        let panel_tilt = 45.0;
+        let panel_azimuth = 135.0;
 
-    //     println!("{0}", actual.global);
-    //     println!("{0}", actual.direct);
-    //     println!("{0}", actual.diffuse);
-    //     println!("{0}", actual.sky_diffuse);
-    //     println!("{}", actual.ground_diffuse);
+        let aoi1 = aoi(zenith, azimuth, panel_tilt, panel_azimuth, None);
+        let actual1 = poa_haydavies(panel_tilt, zenith, 90.0, 200.0, 60.0, 1414.0, aoi1, 0.25);
 
-    //     // Verify these in pvlib
-    //     assert!((actual.global - 231.949_030).abs() < 1e-5);
-    //     assert!((actual.direct - 142.251_697).abs() < 1e-5);
-    //     assert!((actual.diffuse - 89.697_332).abs() < 1e-5);
-    //     assert!((actual.sky_diffuse - 86.402_283).abs() < 1e-5);
-    //     assert!((actual.ground_diffuse - 3.295_048).abs() < 1e-5);
-    // }
+        let aoi2 = aoi(zenith + 1.0, azimuth, panel_tilt, panel_azimuth, None);
+        let actual2 = poa_haydavies(
+            panel_tilt,
+            zenith + 1.0,
+            90.0,
+            200.0,
+            60.0,
+            1414.0,
+            aoi2,
+            0.25,
+        );
+
+        assert!(actual1.global > actual2.global);
+        assert!(actual1.direct > actual2.direct);
+        assert!(actual1.diffuse > actual2.diffuse);
+    }
 
     #[test]
     fn ineichen_clearsky_at_sea_level() {
