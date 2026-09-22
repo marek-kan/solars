@@ -2,7 +2,6 @@ use std::sync::OnceLock;
 
 use chrono::{DateTime, Datelike};
 use ndarray::{Array3, ArrayView1, ArrayView2, ArrayView3};
-use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 use std::fmt::{Display, Formatter};
 
@@ -20,6 +19,7 @@ use crate::core::solar_position::{
     topocentric_zenith_angle,
 };
 use crate::core::time::{calc_julian_day, delta_t_seconds, julian_century, julian_millennium};
+use crate::core::with_thread_pool;
 use crate::periodic_tables::earth::{
     B0_TABLE, B1_TABLE, CoordType, L0_TABLE, L1_TABLE, L2_TABLE, L3_TABLE, L4_TABLE, L5_TABLE,
     R0_TABLE, R1_TABLE, R2_TABLE, R3_TABLE, R4_TABLE, calculate_geocentric_coeff,
@@ -285,12 +285,7 @@ pub(crate) fn calculate_solar_position(
     let mut zenith_values = vec![0.0; shape.0 * cells_per_time];
     let mut azimuth_values = vec![0.0; shape.0 * cells_per_time];
 
-    let thread_pool = ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build()
-        .map_err(|error| SolarError::ThreadPool(error.to_string()))?;
-
-    thread_pool.install(|| {
+    with_thread_pool(num_threads, || {
         zenith_values
             .par_chunks_mut(2048)
             .zip(azimuth_values.par_chunks_mut(2048))
@@ -333,7 +328,7 @@ pub(crate) fn calculate_solar_position(
                     );
                 }
             });
-    });
+    })?;
 
     Ok(SolarPositionResult {
         zenith: Array3::from_shape_vec(shape, zenith_values)
@@ -372,12 +367,8 @@ pub(crate) fn calculate_aoi(
 
     let cells_per_time = shape.1 * shape.2;
     let mut aoi_values = vec![0.0; shape.0 * cells_per_time];
-    let thread_pool = ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build()
-        .map_err(|error| SolarError::ThreadPool(error.to_string()))?;
 
-    thread_pool.install(|| {
+    with_thread_pool(num_threads, || {
         aoi_values
             .par_chunks_mut(2048)
             .enumerate()
@@ -399,7 +390,7 @@ pub(crate) fn calculate_aoi(
                     );
                 }
             });
-    });
+    })?;
 
     Ok(AoiResult {
         aoi: Array3::from_shape_vec(shape, aoi_values)
@@ -427,12 +418,8 @@ pub(crate) fn calculate_clearsky(
     let mut ghi_values = vec![0.0; shape.0 * cells_per_time];
     let mut dni_values = vec![0.0; shape.0 * cells_per_time];
     let mut dhi_values = vec![0.0; shape.0 * cells_per_time];
-    let thread_pool = ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build()
-        .map_err(|error| SolarError::ThreadPool(error.to_string()))?;
 
-    thread_pool.install(|| {
+    with_thread_pool(num_threads, || {
         let linke_turbidity = linke_turbidity_grid();
         ghi_values
             .par_iter_mut()
@@ -471,7 +458,7 @@ pub(crate) fn calculate_clearsky(
                 *dni = result.dni;
                 *dhi = result.dhi;
             });
-    });
+    })?;
 
     Ok(ClearSkyResult {
         ghi: Array3::from_shape_vec(shape, ghi_values)
@@ -516,12 +503,8 @@ pub(crate) fn calculate_poa(
     let mut diffuse_values = vec![0.0; shape.0 * cells_per_time];
     let mut sky_diffuse_values = vec![0.0; shape.0 * cells_per_time];
     let mut ground_diffuse_values = vec![0.0; shape.0 * cells_per_time];
-    let thread_pool = ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build()
-        .map_err(|error| SolarError::ThreadPool(error.to_string()))?;
 
-    thread_pool.install(|| {
+    with_thread_pool(num_threads, || {
         global_values
             .par_iter_mut()
             .zip(direct_values.par_iter_mut())
@@ -563,7 +546,7 @@ pub(crate) fn calculate_poa(
                     *ground_diffuse = result.ground_diffuse;
                 },
             );
-    });
+    })?;
 
     Ok(PoaResult {
         global: Array3::from_shape_vec(shape, global_values)

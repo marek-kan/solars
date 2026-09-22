@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn haydavies_poa_near_the_horizon() {
-        let zenith = 87.0;
+        let zenith = 86.0;
         let azimuth = 110.0;
         let panel_tilt = 45.0;
         let panel_azimuth = 135.0;
@@ -242,10 +242,10 @@ mod tests {
         let aoi1 = aoi(zenith, azimuth, panel_tilt, panel_azimuth, None);
         let actual1 = poa_haydavies(panel_tilt, zenith, 90.0, 200.0, 60.0, 1414.0, aoi1, 0.25);
 
-        let aoi2 = aoi(zenith + 1.0, azimuth, panel_tilt, panel_azimuth, None);
+        let aoi2 = aoi(zenith + 2.0, azimuth, panel_tilt, panel_azimuth, None);
         let actual2 = poa_haydavies(
             panel_tilt,
-            zenith + 1.0,
+            zenith + 2.0,
             90.0,
             200.0,
             60.0,
@@ -257,6 +257,14 @@ mod tests {
         assert!(actual1.global > actual2.global);
         assert!(actual1.direct > actual2.direct);
         assert!(actual1.diffuse > actual2.diffuse);
+        assert!(actual2.global > 0.0);
+        assert!(actual2.diffuse > 0.0);
+
+        let aoi3 = aoi(90.1, azimuth, panel_tilt, panel_azimuth, None);
+        let actual3 = poa_haydavies(panel_tilt, 90.1, 10.0, 0.1, 10.0, 1414.0, aoi3, 0.25);
+        assert!(actual3.global > 0.0);
+        assert!(actual3.diffuse > 0.0);
+        assert!(actual3.direct == 0.0);
     }
 
     #[test]
