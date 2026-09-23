@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use chrono::{DateTime, Datelike};
 use ndarray::{Array3, ArrayView1, ArrayView2, ArrayView3};
 use rayon::prelude::*;
@@ -402,6 +400,7 @@ pub(crate) fn calculate_aoi(
 pub(crate) fn calculate_clearsky(
     input: ClearSkyInput<'_>,
     num_threads: usize,
+    linke_turbidity: &LinkeTurbidityGrid,
 ) -> Result<ClearSkyResult, SolarError> {
     if num_threads == 0 {
         return Err(SolarError::InvalidThreadCount);
@@ -420,7 +419,6 @@ pub(crate) fn calculate_clearsky(
     let mut dhi_values = vec![0.0; shape.0 * cells_per_time];
 
     with_thread_pool(num_threads, || {
-        let linke_turbidity = linke_turbidity_grid();
         ghi_values
             .par_iter_mut()
             .zip(dni_values.par_iter_mut())
@@ -467,14 +465,6 @@ pub(crate) fn calculate_clearsky(
             .expect("output buffer length must match the requested shape"),
         dhi: Array3::from_shape_vec(shape, dhi_values)
             .expect("output buffer length must match the requested shape"),
-    })
-}
-
-fn linke_turbidity_grid() -> &'static LinkeTurbidityGrid {
-    static GRID: OnceLock<LinkeTurbidityGrid> = OnceLock::new();
-    GRID.get_or_init(|| {
-        LinkeTurbidityGrid::load("solars.data/data/LinkeTurbidities.h5")
-            .expect("the bundled Linke turbidity dataset should load")
     })
 }
 
@@ -696,12 +686,25 @@ fn calculate_cell(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        AoiInput, AtmosphericInput, ClearSkyInput, PoaInput, SolarPositionInput, SpatialInput,
-        calculate_aoi, calculate_clearsky, calculate_poa, calculate_solar_position,
+    use std::sync::OnceLock;
+
+    use crate::periodic_tables::tl::DEFAULT_DATASET_PATH;
+
+use super::{
+        AoiInput, AtmosphericInput, ClearSkyInput, LinkeTurbidityGrid, PoaInput,
+        SolarPositionInput, SpatialInput, calculate_aoi, calculate_clearsky, calculate_poa,
+        calculate_solar_position,
     };
     use chrono::{TimeZone, Utc};
     use ndarray::{Array3, arr1, arr2};
+
+    fn linke_turbidity_grid() -> &'static LinkeTurbidityGrid {
+        static GRID: OnceLock<LinkeTurbidityGrid> = OnceLock::new();
+        GRID.get_or_init(|| {
+            LinkeTurbidityGrid::load(DEFAULT_DATASET_PATH)
+            .expect("the bundled Linke turbidity dataset should load")
+        })
+    }
 
     #[test]
     fn solar_position_accepts_spatial_elevation_and_three_dimensional_atmosphere() {
@@ -859,6 +862,7 @@ mod tests {
                 pressure: Some(AtmosphericInput::Time(pressure.view())),
             },
             1,
+            linke_turbidity_grid(),
         )
         .unwrap();
 
