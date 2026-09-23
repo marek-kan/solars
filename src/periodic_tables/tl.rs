@@ -334,7 +334,7 @@ mod tests {
         static GRID: OnceLock<LinkeTurbidityGrid> = OnceLock::new();
         GRID.get_or_init(|| {
             LinkeTurbidityGrid::load(DEFAULT_DATASET_PATH)
-            .expect("the bundled Linke turbidity dataset should load from")
+                .expect("the bundled Linke turbidity dataset should load from")
         })
     }
 
