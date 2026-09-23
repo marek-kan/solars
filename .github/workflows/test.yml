@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      CARGO_BUILD_WARNINGS: allow
 
     steps:
       - uses: actions/checkout@v6
@@ -17,5 +19,5 @@ jobs:
       - name: Tests
         run: cargo test
 
-      - name: Formatiing
+      - name: Formating
         run: cargo fmt --check
