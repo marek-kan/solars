@@ -1,6 +1,9 @@
 pub(crate) mod core;
 pub(crate) mod periodic_tables;
 
+use std::path::PathBuf;
+use std::sync::OnceLock;
+
 use chrono::{DateTime, Datelike};
 use ndarray::{Array1, Ix1, Ix2, Ix3};
 use numpy::{
@@ -14,6 +17,7 @@ use crate::core::grid::{
     SpatialInput, calculate_aoi, calculate_clearsky, calculate_poa, calculate_solar_position,
 };
 use crate::core::irradiance::{OpticalLossParameters, etraterrestrial_radiation};
+use crate::periodic_tables::tl::LinkeTurbidityGrid;
 
 #[pyclass(name = "SolarPositionResult")]
 struct PySolarPositionResult {
@@ -267,6 +271,7 @@ fn calculate_clearsky_numpy<'py>(
     //     .map(|values| atmospheric_input("pressure", values))
     //     .transpose()?;
     let pressure_input = map_option_arr_to_atmospheric_input("pressure", &pressure)?;
+    let linke_turbidity = linke_turbidity_grid(py)?;
     let result = calculate_clearsky(
         ClearSkyInput {
             time: time_values.view(),
@@ -277,6 +282,7 @@ fn calculate_clearsky_numpy<'py>(
             pressure: pressure_input,
         },
         num_threads,
+        linke_turbidity,
     )
     .map_err(to_python_error)?;
 
@@ -406,6 +412,29 @@ fn map_option_arr_to_atmospheric_input<'py>(
         .as_ref()
         .map(|values| atmospheric_input(name, values))
         .transpose()
+}
+
+fn linke_turbidity_grid(py: Python<'_>) -> PyResult<&'static LinkeTurbidityGrid> {
+    static GRID: OnceLock<Result<LinkeTurbidityGrid, String>> = OnceLock::new();
+
+    let prefix: String = PyModule::import(py, "sys")?.getattr("prefix")?.extract()?;
+    let installed_path = PathBuf::from(prefix).join("LinkeTurbidities.h5");
+    let source_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("solars.data/data/LinkeTurbidities.h5");
+    let data_path = if installed_path.is_file() {
+        installed_path
+    } else {
+        source_path
+    };
+
+    match GRID
+        .get_or_init(|| LinkeTurbidityGrid::load(data_path).map_err(|error| error.to_string()))
+    {
+        Ok(grid) => Ok(grid),
+        Err(error) => Err(PyValueError::new_err(format!(
+            "failed to load bundled Linke turbidity dataset: {error}"
+        ))),
+    }
 }
 
 fn to_python_error(error: SolarError) -> PyErr {

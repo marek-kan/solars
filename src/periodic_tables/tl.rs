@@ -3,7 +3,14 @@ use std::path::Path;
 
 use chrono::{DateTime, Datelike, Utc};
 use hdf5_pure::File;
+macro_rules! concatc {
+    ()=>{""};
+    ($($anything:tt)*)=>({
+        use $crate::__cf_osRcTFl4A;
 
+        $crate::__concatc_expr!(($($anything)*) ($($anything)*))
+    })
+}
 const LATITUDE_COUNT: usize = 2_160;
 const LONGITUDE_COUNT: usize = 4_320;
 const MONTH_COUNT: usize = 12;
@@ -11,6 +18,10 @@ const CELL_SIZE_DEGREES: f64 = 1.0 / 12.0;
 const FIRST_LATITUDE: f64 = 90.0 - CELL_SIZE_DEGREES / 2.0;
 const FIRST_LONGITUDE: f64 = -180.0 + CELL_SIZE_DEGREES / 2.0;
 const DATASET_NAME: &str = "LinkeTurbidity";
+pub(crate) const DEFAULT_DATASET_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/solars.data/data/LinkeTurbidities.h5",
+);
 
 /// Spatial lookup method for the Linke turbidity grid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -314,13 +325,16 @@ mod tests {
 
     use chrono::{TimeZone, Utc};
 
+    use crate::periodic_tables::tl::DEFAULT_DATASET_PATH;
+
     use super::{LinkeTurbidityGrid, SpatialInterpolation};
 
     fn grid() -> &'static LinkeTurbidityGrid {
+        println!("Path: {DEFAULT_DATASET_PATH}");
         static GRID: OnceLock<LinkeTurbidityGrid> = OnceLock::new();
         GRID.get_or_init(|| {
-            LinkeTurbidityGrid::load("solars.data/data/LinkeTurbidities.h5")
-                .expect("the bundled Linke turbidity dataset should load")
+            LinkeTurbidityGrid::load(DEFAULT_DATASET_PATH)
+            .expect("the bundled Linke turbidity dataset should load from")
         })
     }
 
