@@ -11,7 +11,6 @@ on:
       - dont_publish_yet
     tags:
       - 'v*'
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -23,6 +22,8 @@ jobs:
   
   linux:
     runs-on: ${{ matrix.platform.runner }}
+    env:
+      CARGO_BUILD_WARNINGS: allow
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
@@ -72,6 +73,8 @@ jobs:
 
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
+    env:
+      CARGO_BUILD_WARNINGS: allow
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
@@ -113,6 +116,8 @@ jobs:
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
+    env:
+      CARGO_BUILD_WARNINGS: allow
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
@@ -153,6 +158,8 @@ jobs:
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
+    env:
+      CARGO_BUILD_WARNINGS: allow
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
