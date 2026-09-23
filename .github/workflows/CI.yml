@@ -197,18 +197,14 @@ jobs:
     permissions:
       # Use to sign the release artifacts
       id-token: write
-      # Used to upload release artifacts
-      contents: write
-      # Used to generate artifact attestation
-      # attestations: write
+      contents: read
     steps:
       - uses: actions/download-artifact@v7
-      # TODO: fix later
-      # - name: Generate artifact attestation
-      #   uses: actions/attest@v4
-      #   with:
-      #     subject-path: 'wheels-*/*'
+        with:
+          path: dist
+          merge-multiple: true
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: 'wheels-*' 
+          packages-dir: dist
