@@ -15,5 +15,8 @@ dependencies = [
     "numpy>=1.26",
 ]
 
+[tool.maturin]
+data = "solars.data"
+
 [project.optional-dependencies]
 comparison = ["pandas>=2.0", "pvlib>=0.11"]

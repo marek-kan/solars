@@ -453,7 +453,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "solars"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "hdf5-pure",

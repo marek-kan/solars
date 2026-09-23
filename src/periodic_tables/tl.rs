@@ -319,11 +319,8 @@ mod tests {
     fn grid() -> &'static LinkeTurbidityGrid {
         static GRID: OnceLock<LinkeTurbidityGrid> = OnceLock::new();
         GRID.get_or_init(|| {
-            LinkeTurbidityGrid::load(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/src/periodic_tables/LinkeTurbidities.h5"
-            ))
-            .expect("the bundled Linke turbidity dataset should load")
+            LinkeTurbidityGrid::load("solars.data/data/LinkeTurbidities.h5")
+                .expect("the bundled Linke turbidity dataset should load")
         })
     }
 
