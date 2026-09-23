@@ -690,7 +690,7 @@ mod tests {
 
     use crate::periodic_tables::tl::DEFAULT_DATASET_PATH;
 
-    use super::{
+use super::{
         AoiInput, AtmosphericInput, ClearSkyInput, LinkeTurbidityGrid, PoaInput,
         SolarPositionInput, SpatialInput, calculate_aoi, calculate_clearsky, calculate_poa,
         calculate_solar_position,
@@ -702,7 +702,7 @@ mod tests {
         static GRID: OnceLock<LinkeTurbidityGrid> = OnceLock::new();
         GRID.get_or_init(|| {
             LinkeTurbidityGrid::load(DEFAULT_DATASET_PATH)
-                .expect("the bundled Linke turbidity dataset should load")
+            .expect("the bundled Linke turbidity dataset should load")
         })
     }
 
